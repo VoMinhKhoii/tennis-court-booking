@@ -141,10 +141,17 @@ async function book(start) {
 			: `ref ${r1.data?.reference}, amount ${r1.data?.amount_vnd}, occ ${r1.data?.occurrences}`,
 	);
 	const r2 = await book(slotA);
+	// Must fail for the RIGHT reason: the exclusion constraint (SQLSTATE 23P01),
+	// not some unrelated error. Any-error would be a false positive.
+	const isExclusion =
+		Boolean(r2.error) &&
+		(r2.error.code === "23P01" || /overlap|exclusion|no_overlap|conflict/i.test(r2.error.message));
 	log(
-		Boolean(r2.error),
-		"DOUBLE-BOOK rejected on same slot (exclusion constraint)",
-		r2.error ? `blocked: ${r2.error.code ?? r2.error.message}` : "SECOND BOOKING SUCCEEDED (bad!)",
+		isExclusion,
+		"DOUBLE-BOOK rejected on same slot (exclusion constraint 23P01)",
+		r2.error
+			? `blocked: ${r2.error.code ?? ""} ${r2.error.message}`
+			: "SECOND BOOKING SUCCEEDED (bad!)",
 	);
 	const r3 = await book(slotB);
 	log(
