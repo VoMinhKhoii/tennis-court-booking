@@ -1,38 +1,42 @@
 {
-  "name": "@tuturuuu/starter",
-  "version": "0.1.0",
-  "description": "A modern Next.js starter for Tuturuuu projects.",
-  "private": true,
-  "author": "Tuturuuu",
-  "homepage": "https://github.com/tutur3u/starter#readme",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tutur3u/starter.git"
-  },
-  "bugs": {
-    "url": "https://github.com/tutur3u/starter/issues"
-  },
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@vercel/analytics": "^2.0.1",
-    "next": "16.2.6",
-    "react": "19.2.6",
-    "react-dom": "19.2.6",
-    "tuturuuu": "^0.4.3"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.0",
-    "@types/node": "^25.8.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "eslint": "^10.4.0",
-    "eslint-config-next": "16.2.6",
-    "tailwindcss": "^4.3.0",
-    "typescript": "^6.0.3"
-  }
+	"name": "@tuturuuu/starter",
+	"version": "0.1.0",
+	"description": "A modern Next.js starter for Tuturuuu projects.",
+	"private": true,
+	"author": "Tuturuuu",
+	"homepage": "https://github.com/tutur3u/starter#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/tutur3u/starter.git"
+	},
+	"bugs": {
+		"url": "https://github.com/tutur3u/starter/issues"
+	},
+	"scripts": {
+		"dev": "next dev",
+		"build": "next build",
+		"start": "next start",
+		"lint": "biome check .",
+		"format": "biome format --write ."
+	},
+	"dependencies": {
+		"@supabase/ssr": "^0.10.3",
+		"@supabase/supabase-js": "^2.107.0",
+		"@tanstack/react-query": "^5.101.0",
+		"@vercel/analytics": "^2.0.1",
+		"next": "16.2.6",
+		"react": "19.2.6",
+		"react-dom": "19.2.6",
+		"tuturuuu": "^0.4.3",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.16",
+		"@tailwindcss/postcss": "^4.3.0",
+		"@types/node": "^25.8.0",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"tailwindcss": "^4.3.0",
+		"typescript": "^6.0.3"
+	}
 }
