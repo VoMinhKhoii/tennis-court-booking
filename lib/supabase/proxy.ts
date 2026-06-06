@@ -30,7 +30,19 @@ export async function updateSession(request: NextRequest) {
 
 	// IMPORTANT: refresh the session. Do not run code between client creation
 	// and getUser(), and do not remove this call.
-	await supabase.auth.getUser();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+
+	// Owner-route gating (spec §7): a signed-out visitor of the dashboard is sent
+	// to /login. This is convenience only — defense-in-depth lives in the layout
+	// and every owner server action (getUser + is_owner). Do NOT rely on this.
+	const { pathname } = request.nextUrl;
+	if (!user && pathname.startsWith("/dashboard")) {
+		const url = request.nextUrl.clone();
+		url.pathname = "/login";
+		return NextResponse.redirect(url);
+	}
 
 	return supabaseResponse;
 }
