@@ -15,11 +15,10 @@ import type { AvailabilityRow } from "./types";
  * court's operating window to render free/occupied blocks.
  */
 export function useAvailability(courtId: string, monthStart: string) {
-	const supabase = createClient();
-
 	return useQuery({
 		queryKey: queryKeys.availability(courtId, monthStart),
 		queryFn: async (): Promise<AvailabilityRow[]> => {
+			const supabase = createClient();
 			const monthEnd = lastOfMonth(monthStart);
 			const { data, error } = await supabase
 				.from("public_availability")

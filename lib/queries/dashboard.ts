@@ -7,10 +7,10 @@ import type { BookingRow, CourtRow, SettingsRow } from "./types";
 
 /** All courts (owner read; also used by the public form for court options). */
 export function useCourts() {
-	const supabase = createClient();
 	return useQuery({
 		queryKey: queryKeys.courts(),
 		queryFn: async (): Promise<CourtRow[]> => {
+			const supabase = createClient();
 			const { data, error } = await supabase
 				.from("court")
 				.select("id, name, open_time, close_time, is_active, created_at")
@@ -25,10 +25,10 @@ export function useCourts() {
 
 /** Settings row (owner read). */
 export function useSettings() {
-	const supabase = createClient();
 	return useQuery({
 		queryKey: queryKeys.settings(),
 		queryFn: async (): Promise<SettingsRow | null> => {
+			const supabase = createClient();
 			const { data, error } = await supabase
 				.from("settings")
 				.select("id, flat_hourly_rate_vnd, qr_image_path")
@@ -44,10 +44,10 @@ export function useSettings() {
 
 /** Pending queue, oldest first so age is obvious (spec §7). */
 export function usePendingBookings() {
-	const supabase = createClient();
 	return useQuery({
 		queryKey: queryKeys.pendingBookings(),
 		queryFn: async (): Promise<BookingRow[]> => {
+			const supabase = createClient();
 			const { data, error } = await supabase
 				.from("booking")
 				.select("*")
@@ -67,10 +67,10 @@ export function useConfirmedBookings(filters: {
 	month?: string; // YYYY-MM-DD within the target month
 	name?: string;
 }) {
-	const supabase = createClient();
 	return useQuery({
 		queryKey: queryKeys.confirmedBookings(filters),
 		queryFn: async (): Promise<BookingRow[]> => {
+			const supabase = createClient();
 			let query = supabase
 				.from("booking")
 				.select("*")
