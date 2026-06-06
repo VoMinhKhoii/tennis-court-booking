@@ -27,7 +27,7 @@ begin
 
 	-- (1) Generated slot_date is the ICT calendar date of the start instant.
 	select slot_date into v_slot from public.booking_occurrence where booking_id = v_b1;
-	assert v_slot = date '2026-07-01', format('slot_date wrong: %', v_slot);
+	assert v_slot = date '2026-07-01', format('slot_date wrong: %s', v_slot);
 
 	-- (2) Overlap on the same court is rejected by no_overlap.
 	insert into public.booking (court_id, type, customer_name, zalo_phone, status, reference, amount_vnd)

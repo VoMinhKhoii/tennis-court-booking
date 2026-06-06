@@ -63,6 +63,7 @@ export function CourtManager() {
 
 			{editing ? (
 				<CourtForm
+					key={editing === "new" ? "new" : editing.id}
 					court={editing === "new" ? null : editing}
 					onDone={refresh}
 					onCancel={() => setEditing(null)}
@@ -106,13 +107,17 @@ function CourtForm({
 			return;
 		}
 		startTransition(async () => {
-			const result = court
-				? await updateCourt(court.id, parsed.data)
-				: await createCourt(parsed.data);
-			if (result.ok) {
-				onDone();
-			} else {
-				setError(result.error);
+			try {
+				const result = court
+					? await updateCourt(court.id, parsed.data)
+					: await createCourt(parsed.data);
+				if (result.ok) {
+					onDone();
+				} else {
+					setError(result.error);
+				}
+			} catch {
+				setError("Failed to save court. Please try again.");
 			}
 		});
 	}

@@ -53,7 +53,7 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<B
 		.eq("zalo_phone", data.zaloPhone)
 		.eq("status", "pending");
 	if (countError) {
-		throw countError;
+		return fail("Could not verify your pending bookings. Please try again.");
 	}
 	if ((count ?? 0) >= MAX_ACTIVE_PENDING) {
 		return fail(
@@ -82,7 +82,7 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<B
 
 	const row = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
 	if (!row) {
-		throw new Error("create_pending_booking returned no row");
+		return fail("Could not create the booking. Please try again.");
 	}
 
 	// Fetch the QR path for the post-submit screen (no client-supplied path, §9).
@@ -111,5 +111,6 @@ function translateRpcError(message: string): string {
 	if (message.includes("court is not active")) {
 		return "That court is not currently available for booking.";
 	}
-	return message;
+	// Don't surface raw DB internals for unrecognized errors.
+	return "Could not create the booking. Please check your selection and try again.";
 }

@@ -64,7 +64,8 @@ require linking it first.
    ```
 
 2. **Apply the schema** (migrations in `supabase/migrations/`, ordered
-   `20260606080001`–`06`: schema, functions, triggers, view, RLS/grants, storage):
+   `20260606080001`–`09`: schema, functions, triggers, view, RLS/grants, storage,
+   public read surfaces, pgcrypto search_path, and integrity checks):
 
    ```bash
    supabase db push

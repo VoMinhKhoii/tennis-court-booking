@@ -22,9 +22,9 @@ begin
 
 	select status, source, amount_vnd into v_status, v_source, v_amt
 	from public.booking where reference = v_ref;
-	assert v_status = 'pending', format('status not forced to pending: %', v_status);
-	assert v_source = 'public',  format('source not forced to public: %', v_source);
-	assert v_amt = 200000, format('amount not derived server-side: %', v_amt);
+	assert v_status = 'pending', format('status not forced to pending: %s', v_status);
+	assert v_source = 'public',  format('source not forced to public: %s', v_source);
+	assert v_amt = 200000, format('amount not derived server-side: %s', v_amt);
 
 	-- Out-of-hours range is rejected server-side (court closes 21:00).
 	declare
@@ -110,7 +110,7 @@ begin
 	from information_schema.columns
 	where table_schema = 'public' and table_name = 'public_availability';
 	assert v_cols = 'court_id,slot_date,time_range,occupied',
-		format('public_availability columns drifted: %', v_cols);
+		format('public_availability columns drifted: %s', v_cols);
 	raise notice 'OK 04C view column boundary';
 end;
 $$;

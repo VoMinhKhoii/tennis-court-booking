@@ -18,12 +18,16 @@ export function LoginForm() {
 		e.preventDefault();
 		setError(null);
 		startTransition(async () => {
-			const result = await login({ email, password });
-			if (result.ok) {
-				router.replace("/dashboard");
-				router.refresh();
-			} else {
-				setError(result.error);
+			try {
+				const result = await login({ email, password });
+				if (result.ok) {
+					router.replace("/dashboard");
+					router.refresh();
+				} else {
+					setError(result.error);
+				}
+			} catch {
+				setError("Unable to sign in right now. Please try again.");
 			}
 		});
 	}

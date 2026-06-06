@@ -1,8 +1,12 @@
 /** Shared display formatters for the owner dashboard. */
 
-/** Format a VND integer with thousands separators. */
+/** Format a VND integer using VN locale conventions (e.g. 200.000 ₫). */
 export function formatVnd(amount: number): string {
-	return `${amount.toLocaleString("en-US")} ₫`;
+	return new Intl.NumberFormat("vi-VN", {
+		style: "currency",
+		currency: "VND",
+		maximumFractionDigits: 0,
+	}).format(amount);
 }
 
 /** Human "age" of a booking from its created_at ISO timestamp. */

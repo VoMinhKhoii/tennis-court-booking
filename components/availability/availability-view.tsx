@@ -23,7 +23,12 @@ export function AvailabilityView() {
 	const [courtId, setCourtId] = useState<string | null>(null);
 	const [monthStart, setMonthStart] = useState(months[0]);
 
-	const selectedCourtId = courtId ?? activeCourts[0]?.id ?? null;
+	// Prefer the user's choice only if it still exists in the active list; else
+	// fall back to the first active court so the grid never blanks out.
+	const selectedCourtId =
+		(courtId && activeCourts.some((c) => c.id === courtId) ? courtId : null) ??
+		activeCourts[0]?.id ??
+		null;
 	const selectedCourt = activeCourts.find((c) => c.id === selectedCourtId) ?? null;
 
 	if (isLoading) {

@@ -27,9 +27,9 @@ begin
 
 	-- RLS default-deny: policies require is_owner(), so reads return zero rows.
 	select count(*) into v_cnt from public.court;
-	assert v_cnt = 0, format('non-owner read court rows: %', v_cnt);
+	assert v_cnt = 0, format('non-owner read court rows: %s', v_cnt);
 	select count(*) into v_cnt from public.settings;
-	assert v_cnt = 0, format('non-owner read settings rows: %', v_cnt);
+	assert v_cnt = 0, format('non-owner read settings rows: %s', v_cnt);
 
 	-- Mutations are blocked by the WITH CHECK clause.
 	declare v_denied boolean := false;

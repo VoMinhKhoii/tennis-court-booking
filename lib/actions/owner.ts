@@ -137,7 +137,7 @@ export async function createManualBooking(
 	}
 	const row = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
 	if (!row) {
-		throw new Error("create_pending_booking returned no row");
+		return fail("Could not create the booking. Please try again.");
 	}
 
 	// Promote to confirmed + owner source (owner-only via RLS). The status update
@@ -194,16 +194,16 @@ export async function updateCourt(
 	id: string,
 	input: CourtInput,
 ): Promise<ActionResult<{ id: string }>> {
-	const idParsed = courtInputSchema.safeParse(input);
-	if (!idParsed.success) {
-		const first = idParsed.error.issues[0];
+	const parsed = courtInputSchema.safeParse(input);
+	if (!parsed.success) {
+		const first = parsed.error.issues[0];
 		return fail(first?.message ?? "Invalid court", first?.path.join("."));
 	}
 	const guard = await requireOwner();
 	if (!guard.ok) {
 		return fail(guard.error);
 	}
-	const c = idParsed.data;
+	const c = parsed.data;
 	const { data, error } = await guard.supabase
 		.from("court")
 		.update({

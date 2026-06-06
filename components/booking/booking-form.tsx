@@ -21,17 +21,25 @@ import { BookingReceiptScreen } from "./booking-receipt";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-/** Format a VND integer with thousands separators. */
+/** Format a VND integer using VN locale conventions (e.g. 200.000 ₫). */
 function formatVnd(amount: number): string {
-	return `${amount.toLocaleString("en-US")} ₫`;
+	return new Intl.NumberFormat("vi-VN", {
+		style: "currency",
+		currency: "VND",
+		maximumFractionDigits: 0,
+	}).format(amount);
 }
 
-/** Build the list of 30-min start-time options within a court's window. */
-function startTimeOptions(court: CourtRow): string[] {
+/**
+ * Build the list of 30-min start-time options within a court's window such that
+ * a booking of `blockCount` 30-min blocks still ends on or before closing time.
+ */
+function startTimeOptions(court: CourtRow, blockCount: number): string[] {
 	const open = timeToMinutes(court.open_time);
 	const close = timeToMinutes(court.close_time);
+	const duration = Math.max(1, blockCount) * 30;
 	const out: string[] = [];
-	for (let m = open; m + 30 <= close; m += 30) {
+	for (let m = open; m + duration <= close; m += 30) {
 		out.push(minutesToTime(m));
 	}
 	return out;
@@ -182,7 +190,7 @@ export function BookingForm() {
 		return <p className="text-sm text-zinc-500">No courts are open for booking yet.</p>;
 	}
 
-	const times = court ? startTimeOptions(court) : [];
+	const times = court ? startTimeOptions(court, form.blockCount) : [];
 
 	return (
 		<form onSubmit={onSubmit} className="space-y-5">

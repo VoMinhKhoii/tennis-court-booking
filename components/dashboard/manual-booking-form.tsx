@@ -126,13 +126,17 @@ export function ManualBookingForm() {
 			return;
 		}
 		startTransition(async () => {
-			const result = await createManualBooking(parsed.data);
-			if (result.ok) {
-				setSuccess(result.data);
-				// Confirmed bookings list is now stale.
-				queryClient.invalidateQueries({ queryKey: ["bookings"] });
-			} else {
-				setError(result.error);
+			try {
+				const result = await createManualBooking(parsed.data);
+				if (result.ok) {
+					setSuccess(result.data);
+					// Confirmed bookings list is now stale.
+					queryClient.invalidateQueries({ queryKey: ["bookings"] });
+				} else {
+					setError(result.error);
+				}
+			} catch {
+				setError("Failed to create the booking. Please try again.");
 			}
 		});
 	}
