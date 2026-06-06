@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ictToday } from "@/lib/booking/dates";
 import { monthLabel, monthStartOf, nextMonthStart } from "@/lib/booking/grid";
-import { useCourts } from "@/lib/queries/dashboard";
+import { usePublicCourts } from "@/lib/queries/public";
 import { CourtGrid } from "./court-grid";
 
 /**
@@ -12,7 +12,7 @@ import { CourtGrid } from "./court-grid";
  * next), see a live PII-free 30-min grid. Mobile-first, no auth.
  */
 export function AvailabilityView() {
-	const { data: courts, isLoading, isError } = useCourts();
+	const { data: courts, isLoading, isError } = usePublicCourts();
 	const activeCourts = useMemo(() => (courts ?? []).filter((c) => c.is_active), [courts]);
 
 	const months = useMemo(() => {

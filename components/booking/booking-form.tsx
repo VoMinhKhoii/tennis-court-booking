@@ -15,7 +15,7 @@ import {
 import { computeAmountVnd } from "@/lib/booking/pricing";
 import { type BookingInput, bookingInputSchema } from "@/lib/booking/schemas";
 import { useAvailability } from "@/lib/queries/availability";
-import { useCourts, useSettings } from "@/lib/queries/dashboard";
+import { usePublicCourts, usePublicSettings } from "@/lib/queries/public";
 import type { CourtRow } from "@/lib/queries/types";
 import { BookingReceiptScreen } from "./booking-receipt";
 
@@ -51,8 +51,8 @@ type FormState = {
 };
 
 export function BookingForm() {
-	const { data: courts } = useCourts();
-	const { data: settings } = useSettings();
+	const { data: courts } = usePublicCourts();
+	const { data: settings } = usePublicSettings();
 	const activeCourts = useMemo(() => (courts ?? []).filter((c) => c.is_active), [courts]);
 
 	const today = useMemo(() => ictToday(), []);
