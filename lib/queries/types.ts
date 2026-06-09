@@ -6,6 +6,8 @@ export type AvailabilityRow = {
 	slot_date: string; // YYYY-MM-DD (ICT)
 	time_range: string; // tstzrange text, e.g. ["...","...")
 	occupied: boolean;
+	/** Occupied only by a live soft-hold (vs confirmed/pending). Non-PII. */
+	held: boolean;
 };
 
 export type CourtRow = {
@@ -21,6 +23,10 @@ export type SettingsRow = {
 	id: number;
 	flat_hourly_rate_vnd: number;
 	qr_image_path: string | null;
+	bank_bin: string | null;
+	bank_account_number: string | null;
+	bank_account_name: string | null;
+	owner_zalo: string | null;
 };
 
 /** booking row (owner-readable). */

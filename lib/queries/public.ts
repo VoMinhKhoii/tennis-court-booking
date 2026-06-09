@@ -37,7 +37,7 @@ export function usePublicSettings() {
 			const supabase = createClient();
 			const { data, error } = await supabase
 				.from("public_settings")
-				.select("id, flat_hourly_rate_vnd, qr_image_path")
+				.select("id, flat_hourly_rate_vnd, qr_image_path, owner_zalo")
 				.eq("id", 1)
 				.maybeSingle();
 			if (error) {
