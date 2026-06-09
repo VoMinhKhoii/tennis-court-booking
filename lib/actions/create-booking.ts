@@ -68,9 +68,7 @@ export async function createHold(input: BookingInput): Promise<ActionResult<Book
 		.from("booking")
 		.select("id", { count: "exact", head: true })
 		.eq("zalo_phone", data.zaloPhone)
-		.or(
-			`status.eq.pending,and(status.eq.held,hold_expires_at.gt.${new Date().toISOString()})`,
-		);
+		.or(`status.eq.pending,and(status.eq.held,hold_expires_at.gt.${new Date().toISOString()})`);
 	if (countError) {
 		return fail("Could not verify your reservations. Please try again.");
 	}
@@ -221,12 +219,7 @@ export async function getHold(reference: string): Promise<ActionResult<BookingRe
 		.select("id, reference, amount_vnd, status, hold_expires_at, court:court_id(name)")
 		.eq("reference", reference)
 		.maybeSingle();
-	if (
-		!b ||
-		b.status !== "held" ||
-		!b.hold_expires_at ||
-		new Date(b.hold_expires_at) <= new Date()
-	) {
+	if (b?.status !== "held" || !b.hold_expires_at || new Date(b.hold_expires_at) <= new Date()) {
 		return fail("HOLD_EXPIRED");
 	}
 
