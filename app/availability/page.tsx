@@ -3,20 +3,25 @@ import Link from "next/link";
 import { AvailabilityView } from "@/components/availability/availability-view";
 
 export const metadata: Metadata = {
-	title: "Availability",
-	description: "Live tennis court availability — current and next month.",
+	title: "Lịch trống",
+	description: "Lịch sân tennis trống theo thời gian thực — tuần này và các tuần tới.",
 };
 
 export default function AvailabilityPage() {
 	return (
-		<main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6">
+		<main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6">
 			<header className="mb-5">
-				<Link href="/" className="text-sm text-emerald-700 dark:text-emerald-400">
-					← Home
+				<Link
+					href="/"
+					className="text-sm font-medium text-court-700 transition-colors hover:text-court-900"
+				>
+					← Trang chủ
 				</Link>
-				<h1 className="mt-2 text-2xl font-semibold tracking-tight">Court availability</h1>
-				<p className="text-sm text-zinc-600 dark:text-zinc-400">
-					Live, updated in real time. Pick a court and month.
+				<h1 className="mt-3 font-display text-3xl font-extrabold tracking-tight text-ink">
+					Lịch trống
+				</h1>
+				<p className="mt-1 text-sm text-ink-soft">
+					Chạm khung giờ bắt đầu rồi khung kết thúc để chọn, sau đó đặt sân.
 				</p>
 			</header>
 			<AvailabilityView />
