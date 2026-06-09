@@ -37,11 +37,12 @@ export type BookingRow = {
 	customer_name: string;
 	zalo_phone: string;
 	group_size: number;
-	status: "pending" | "confirmed" | "rejected";
+	status: "held" | "pending" | "confirmed" | "rejected" | "expired";
 	reference: string;
 	amount_vnd: number;
 	reject_reason: string | null;
 	source: "public" | "owner";
 	created_at: string;
 	confirmed_at: string | null;
+	hold_expires_at: string | null;
 };

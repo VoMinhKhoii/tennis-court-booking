@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { updateSettings, uploadQrImage } from "@/lib/actions/owner";
 import { settingsInputSchema } from "@/lib/booking/schemas";
 import { useSettings } from "@/lib/queries/dashboard";
+import type { SettingsRow } from "@/lib/queries/types";
 import { createClient } from "@/lib/supabase/client";
 
 const inputClass =
@@ -22,7 +23,7 @@ export function SettingsPanel() {
 	return (
 		<div className="space-y-8">
 			<RateForm
-				initialRate={settings?.flat_hourly_rate_vnd ?? 0}
+				settings={settings ?? null}
 				onDone={() => queryClient.invalidateQueries({ queryKey: ["settings"] })}
 			/>
 			<QrUpload
@@ -33,23 +34,37 @@ export function SettingsPanel() {
 	);
 }
 
-function RateForm({ initialRate, onDone }: { initialRate: number; onDone: () => void }) {
-	const [rate, setRate] = useState(String(initialRate || ""));
+function RateForm({ settings, onDone }: { settings: SettingsRow | null; onDone: () => void }) {
+	const [rate, setRate] = useState(String(settings?.flat_hourly_rate_vnd || ""));
+	const [bankBin, setBankBin] = useState(settings?.bank_bin ?? "");
+	const [bankAccountNumber, setBankAccountNumber] = useState(settings?.bank_account_number ?? "");
+	const [bankAccountName, setBankAccountName] = useState(settings?.bank_account_name ?? "");
+	const [ownerZalo, setOwnerZalo] = useState(settings?.owner_zalo ?? "");
 	const [error, setError] = useState<string | null>(null);
 	const [saved, setSaved] = useState(false);
 	const [pending, startTransition] = useTransition();
 
 	useEffect(() => {
-		setRate(String(initialRate || ""));
-	}, [initialRate]);
+		setRate(String(settings?.flat_hourly_rate_vnd || ""));
+		setBankBin(settings?.bank_bin ?? "");
+		setBankAccountNumber(settings?.bank_account_number ?? "");
+		setBankAccountName(settings?.bank_account_name ?? "");
+		setOwnerZalo(settings?.owner_zalo ?? "");
+	}, [settings]);
 
 	function onSubmit(e: React.FormEvent) {
 		e.preventDefault();
 		setError(null);
 		setSaved(false);
-		const parsed = settingsInputSchema.safeParse({ flatHourlyRateVnd: Number(rate) });
+		const parsed = settingsInputSchema.safeParse({
+			flatHourlyRateVnd: Number(rate),
+			bankBin,
+			bankAccountNumber,
+			bankAccountName,
+			ownerZalo,
+		});
 		if (!parsed.success) {
-			setError(parsed.error.issues[0]?.message ?? "Invalid rate.");
+			setError(parsed.error.issues[0]?.message ?? "Invalid settings.");
 			return;
 		}
 		startTransition(async () => {
@@ -79,6 +94,53 @@ function RateForm({ initialRate, onDone }: { initialRate: number; onDone: () => 
 					className={inputClass}
 				/>
 			</label>
+
+			<div className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
+				<div className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+					Bank details (dynamic VietQR)
+				</div>
+				<p className="mt-0.5 text-xs text-zinc-500">
+					Leave blank to use the uploaded static QR instead.
+				</p>
+				<div className="mt-2 grid gap-2 sm:grid-cols-3">
+					<input
+						type="text"
+						placeholder="Bank BIN (e.g. 970415)"
+						value={bankBin}
+						onChange={(e) => setBankBin(e.target.value)}
+						className={inputClass}
+					/>
+					<input
+						type="text"
+						placeholder="Account number"
+						value={bankAccountNumber}
+						onChange={(e) => setBankAccountNumber(e.target.value)}
+						className={inputClass}
+					/>
+					<input
+						type="text"
+						placeholder="Account name"
+						value={bankAccountName}
+						onChange={(e) => setBankAccountName(e.target.value)}
+						className={inputClass}
+					/>
+				</div>
+			</div>
+
+			<label className="block space-y-1 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+				<span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Owner Zalo</span>
+				<input
+					type="text"
+					placeholder="0901234567 hoặc https://zalo.me/..."
+					value={ownerZalo}
+					onChange={(e) => setOwnerZalo(e.target.value)}
+					className={inputClass}
+				/>
+				<span className="text-xs text-zinc-500">
+					Khách bấm “Gửi ảnh qua Zalo” sẽ mở liên hệ này. Số điện thoại hoặc link zalo.me.
+				</span>
+			</label>
+
 			{error && <p className="text-sm text-red-600">{error}</p>}
 			{saved && <p className="text-sm text-emerald-600">Saved.</p>}
 			<button
@@ -86,7 +148,7 @@ function RateForm({ initialRate, onDone }: { initialRate: number; onDone: () => 
 				disabled={pending}
 				className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
 			>
-				{pending ? "Saving…" : "Save rate"}
+				{pending ? "Saving…" : "Save settings"}
 			</button>
 		</form>
 	);
