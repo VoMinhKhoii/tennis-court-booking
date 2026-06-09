@@ -33,28 +33,32 @@ export function e2eName(tag = ""): string {
 
 /** Delete every e2e booking (occurrences cascade). Run in afterEach/afterAll. */
 export async function cleanup(): Promise<void> {
-	await admin().from("booking").delete().like("customer_name", `${E2E_PREFIX}%`);
+	const { error } = await admin().from("booking").delete().like("customer_name", `${E2E_PREFIX}%`);
+	if (error) throw new Error(`cleanup failed: ${error.message}`);
 }
 
 export async function getBookingByRef(reference: string) {
-	const { data } = await admin()
+	const { data, error } = await admin()
 		.from("booking")
 		.select("status, hold_expires_at, customer_name")
 		.eq("reference", reference)
 		.maybeSingle();
+	if (error) throw new Error(`getBookingByRef failed: ${error.message}`);
 	return data;
 }
 
 /** Push a hold's expiry into the past so the next read treats it as expired. */
 export async function forceExpire(reference: string): Promise<void> {
-	await admin()
+	const { error } = await admin()
 		.from("booking")
 		.update({ hold_expires_at: new Date(Date.now() - 60_000).toISOString() })
 		.eq("reference", reference);
+	if (error) throw new Error(`forceExpire failed: ${error.message}`);
 }
 
 async function activeCourtIds(): Promise<string[]> {
-	const { data } = await admin().from("court").select("id").eq("is_active", true);
+	const { data, error } = await admin().from("court").select("id").eq("is_active", true);
+	if (error) throw new Error(`activeCourtIds failed: ${error.message}`);
 	return (data ?? []).map((c) => c.id as string);
 }
 

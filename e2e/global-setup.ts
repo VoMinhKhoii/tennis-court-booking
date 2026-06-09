@@ -5,7 +5,7 @@
  * per-test timing deterministic.
  */
 export default async function globalSetup() {
-	const base = "http://localhost:3000";
+	const base = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 	const routes = [
 		"/",
 		"/availability",

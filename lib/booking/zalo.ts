@@ -21,12 +21,12 @@ export function normalizeOwnerZalo(raw: string): string | null {
 	return null;
 }
 
-/** Render-time guard: only emit https hrefs. */
+/** Render-time guard: only emit https hrefs pointing at an allowed Zalo host. */
 export function safeZaloHref(value: string | null | undefined): string | null {
 	if (!value) return null;
 	try {
 		const u = new URL(value);
-		return u.protocol === "https:" ? value : null;
+		return u.protocol === "https:" && isZaloHost(u.hostname) ? value : null;
 	} catch {
 		return null;
 	}

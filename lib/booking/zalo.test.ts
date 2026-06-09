@@ -19,9 +19,11 @@ describe("normalizeOwnerZalo", () => {
 });
 
 describe("safeZaloHref", () => {
-	test("passes only https", () => {
+	test("passes only https on an allowed Zalo host", () => {
 		expect(safeZaloHref("https://zalo.me/x")).toBe("https://zalo.me/x");
+		expect(safeZaloHref("https://chat.zalo.me/x")).toBe("https://chat.zalo.me/x");
 		expect(safeZaloHref("javascript:alert(1)")).toBeNull();
+		expect(safeZaloHref("https://evil.example/x")).toBeNull();
 		expect(safeZaloHref(null)).toBeNull();
 	});
 });

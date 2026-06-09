@@ -75,6 +75,7 @@ async function pool(items, limit, fn) {
 	return out;
 }
 
+let crashed = false;
 try {
 	await cleanup();
 	const { data: court } = await svc
@@ -193,9 +194,10 @@ try {
 		await anon.removeChannel(channel);
 	}
 } catch (e) {
+	crashed = true;
 	console.log("harness crashed:", e.message);
 } finally {
 	await cleanup();
 	console.log("\ncleanup done.");
-	process.exit(0);
+	process.exit(crashed ? 1 : 0);
 }

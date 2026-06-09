@@ -29,7 +29,22 @@ export default async function BookReferencePage({
 	params: Promise<{ reference: string }>;
 }) {
 	const { reference } = await params;
-	const res = await getHold(reference);
+	let res: Awaited<ReturnType<typeof getHold>>;
+	try {
+		res = await getHold(reference);
+	} catch {
+		// Unexpected server/DB error — show a calm retry screen instead of the
+		// framework error page.
+		return (
+			<main className="mx-auto w-full max-w-lg flex-1 space-y-4 px-4 py-12 text-center sm:px-6">
+				<h1 className="font-display text-2xl font-bold text-ink">Không thể tải đơn đặt sân</h1>
+				<p className="text-sm text-ink-soft">Vui lòng thử lại sau ít phút.</p>
+				<Link href="/book" className={`${buttonVariants({ size: "lg" })} mx-auto w-fit`}>
+					Quay lại đặt sân
+				</Link>
+			</main>
+		);
+	}
 
 	// No such booking.
 	if (!res.ok) {

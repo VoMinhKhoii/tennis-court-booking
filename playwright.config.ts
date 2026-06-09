@@ -8,6 +8,9 @@ try {
 	// CI may inject env another way; ignore if the file is absent.
 }
 
+/** Where the app under test runs; override per environment. */
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+
 /**
  * E2E config. Specs use the `.e2e.ts` suffix (not `.spec.ts`/`.test.ts`) so the
  * Bun unit-test runner ignores them. Single worker: the suite shares one cloud
@@ -24,7 +27,7 @@ export default defineConfig({
 	expect: { timeout: 12_000 },
 	reporter: [["list"]],
 	use: {
-		baseURL: "http://localhost:3000",
+		baseURL: BASE_URL,
 		navigationTimeout: 45_000,
 		actionTimeout: 15_000,
 		trace: "on-first-retry",
@@ -32,7 +35,7 @@ export default defineConfig({
 	projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 	webServer: {
 		command: "bun run dev",
-		url: "http://localhost:3000",
+		url: BASE_URL,
 		reuseExistingServer: !process.env.CI,
 		timeout: 120_000,
 	},

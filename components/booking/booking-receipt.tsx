@@ -80,10 +80,15 @@ export function PaymentStep({
 	function finalize() {
 		setHoldExpired(false);
 		start(async () => {
-			const r = await finalizeBooking(receipt.reference);
-			if (r.ok) {
-				onDone();
-			} else {
+			try {
+				const r = await finalizeBooking(receipt.reference);
+				if (r.ok) {
+					onDone();
+				} else {
+					setHoldExpired(true);
+				}
+			} catch {
+				// Network/action failure — fall back to the recovery guidance.
 				setHoldExpired(true);
 			}
 		});

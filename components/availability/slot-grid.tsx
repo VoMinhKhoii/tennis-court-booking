@@ -215,10 +215,13 @@ export function SlotGrid({
 		}
 	}
 
-	if (a1.isLoading) {
+	// A week can straddle two months; gate on BOTH queries so the second month's
+	// days don't render as falsely free while a2 is still loading/errored.
+	const needsSecondMonth = Boolean(months[1]);
+	if (a1.isLoading || (needsSecondMonth && a2.isLoading)) {
 		return <p className="px-1 py-8 text-sm text-ink-faint">Đang tải lịch…</p>;
 	}
-	if (a1.isError) {
+	if (a1.isError || (needsSecondMonth && a2.isError)) {
 		return (
 			<p className="px-1 py-8 text-sm text-signal-red">Không tải được lịch. Vui lòng thử lại.</p>
 		);
