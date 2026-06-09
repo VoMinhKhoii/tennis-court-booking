@@ -25,6 +25,16 @@ export type BookingReceipt = {
 	holdExpiresAt: string;
 };
 
+/**
+ * Lifecycle state of a booking as the checkout page sees it. The `/book/[reference]`
+ * route branches on this to render the live payment step, the "waiting for owner"
+ * done screen, or the expired-hold recovery screen.
+ */
+export type HoldState = "held" | "pending" | "confirmed" | "expired";
+
+/** A resumed checkout: the full receipt plus where it is in its lifecycle. */
+export type HoldResume = BookingReceipt & { state: HoldState };
+
 /** Minutes a slot stays soft-locked while the customer pays (spec §lifecycle). */
 const HOLD_MINUTES = 15;
 
@@ -152,14 +162,6 @@ export async function createHold(input: BookingInput): Promise<ActionResult<Book
 }
 
 /**
- * @deprecated Phase 2 shim — the public flow now uses createHold + finalizeBooking.
- * Kept so the pre-wizard UI keeps compiling until Phase 3 swaps it out.
- */
-export async function createBooking(input: BookingInput): Promise<ActionResult<BookingReceipt>> {
-	return createHold(input);
-}
-
-/**
  * Finalize the customer's hold (final "Rồi, hoàn tất"): promote held -> pending.
  *
  * Guarded UPDATE (only while the hold is live); idempotent on retry/double-tap
@@ -209,18 +211,34 @@ export async function finalizeBooking(
 }
 
 /**
- * Resume read for the payment step (refresh / mobile tab eviction). Returns the
- * full receipt for a still-live hold, or fail("HOLD_EXPIRED") when gone/expired.
+ * Resume read for the checkout page (refresh / mobile tab eviction / shared link).
+ * The reference in the URL is the source of truth: this re-derives the full receipt
+ * AND the lifecycle state on every load, so `/book/[reference]` renders the right
+ * screen (live payment / waiting-for-owner / expired recovery) after any reload.
+ * Returns fail("NOT_FOUND") only when no such booking exists.
  */
-export async function getHold(reference: string): Promise<ActionResult<BookingReceipt>> {
+export async function getHold(reference: string): Promise<ActionResult<HoldResume>> {
 	const supabase = createServiceClient();
 	const { data: b } = await supabase
 		.from("booking")
 		.select("id, reference, amount_vnd, status, hold_expires_at, court:court_id(name)")
 		.eq("reference", reference)
 		.maybeSingle();
-	if (b?.status !== "held" || !b.hold_expires_at || new Date(b.hold_expires_at) <= new Date()) {
-		return fail("HOLD_EXPIRED");
+	if (!b) {
+		return fail("NOT_FOUND");
+	}
+
+	// Map DB status -> the state the checkout UI cares about. A held row whose
+	// window has elapsed reads as expired even before the sweeper flips it.
+	const holdLive = Boolean(b.hold_expires_at) && new Date(b.hold_expires_at) > new Date();
+	let state: HoldState;
+	if (b.status === "held") {
+		state = holdLive ? "held" : "expired";
+	} else if (b.status === "pending" || b.status === "confirmed") {
+		state = b.status;
+	} else {
+		// expired / rejected / anything terminal -> recovery screen.
+		state = "expired";
 	}
 
 	const { count } = await supabase
@@ -249,6 +267,7 @@ export async function getHold(reference: string): Promise<ActionResult<BookingRe
 	const courtName = Array.isArray(court) ? (court[0]?.name ?? "") : (court?.name ?? "");
 
 	return ok({
+		state,
 		reference: b.reference,
 		amountVnd,
 		occurrences: count ?? 1,
@@ -258,7 +277,8 @@ export async function getHold(reference: string): Promise<ActionResult<BookingRe
 		bankAccountName: settings?.bank_account_name ?? null,
 		bankAccountNumber: settings?.bank_account_number ?? null,
 		ownerZalo: settings?.owner_zalo ?? null,
-		holdExpiresAt: b.hold_expires_at,
+		// Only "held" carries a live countdown; other states leave this empty.
+		holdExpiresAt: b.hold_expires_at ?? "",
 	});
 }
 
