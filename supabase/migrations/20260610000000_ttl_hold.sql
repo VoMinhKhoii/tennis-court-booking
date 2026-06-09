@@ -5,8 +5,8 @@
 -- exclusion constraint and public_availability so a hold atomically blocks a slot.
 -- 'expired' is a terminal status for holds whose pay window elapsed; it drops out
 -- of the exclusion predicate (freeing the slot) just like 'rejected'.
-
-begin;
+-- (No explicit begin/commit: the migration runner wraps each file in a
+-- transaction, within which `set local` below applies.)
 
 -- 1. Status CHECKs (drop both, recreate with held + expired). The booking check
 --    is the inline auto-named booking_status_check (080001); the occurrence check
@@ -120,5 +120,3 @@ alter table public.booking_audit enable row level security;
 drop policy if exists booking_audit_owner_all on public.booking_audit;
 create policy booking_audit_owner_all on public.booking_audit
 	for all to authenticated using (public.is_owner()) with check (public.is_owner());
-
-commit;
