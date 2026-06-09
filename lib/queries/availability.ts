@@ -22,7 +22,7 @@ export function useAvailability(courtId: string, monthStart: string) {
 			const monthEnd = lastOfMonth(monthStart);
 			const { data, error } = await supabase
 				.from("public_availability")
-				.select("court_id, slot_date, time_range, occupied")
+				.select("court_id, slot_date, time_range, occupied, held")
 				.eq("court_id", courtId)
 				.gte("slot_date", monthStart)
 				.lte("slot_date", monthEnd)
@@ -34,6 +34,61 @@ export function useAvailability(courtId: string, monthStart: string) {
 		},
 		enabled: Boolean(courtId && monthStart),
 	});
+}
+
+/**
+ * Aggregate availability across ALL active courts for a month — the basis for the
+ * "how many courts are free per slot" grid. Same public_availability read as
+ * useAvailability but without the court filter; the grid groups rows by court.
+ */
+export function useAvailabilityAllCourts(monthStart: string) {
+	return useQuery({
+		queryKey: queryKeys.availabilityAll(monthStart),
+		queryFn: async (): Promise<AvailabilityRow[]> => {
+			const supabase = createClient();
+			const monthEnd = lastOfMonth(monthStart);
+			const { data, error } = await supabase
+				.from("public_availability")
+				.select("court_id, slot_date, time_range, occupied, held")
+				.gte("slot_date", monthStart)
+				.lte("slot_date", monthEnd)
+				.order("slot_date", { ascending: true });
+			if (error) {
+				throw error;
+			}
+			return (data ?? []) as AvailabilityRow[];
+		},
+		enabled: Boolean(monthStart),
+	});
+}
+
+/**
+ * Subscribe to EVERY active court's public Broadcast channel and invalidate the
+ * all-courts availability queries on any event. One effect, N channels.
+ */
+export function useAvailabilityAllRealtime(courtIds: string[]) {
+	const queryClient = useQueryClient();
+	const key = courtIds.join(",");
+
+	useEffect(() => {
+		if (!key) {
+			return;
+		}
+		const supabase = createClient();
+		const channels = key.split(",").map((courtId) =>
+			supabase
+				.channel(`availability:court:${courtId}`, { config: { private: false } })
+				.on("broadcast", { event: "*" }, () => {
+					queryClient.invalidateQueries({ queryKey: ["availability", "all"] });
+				})
+				.subscribe(),
+		);
+		return () => {
+			for (const channel of channels) {
+				supabase.removeChannel(channel);
+			}
+		};
+	}, [key, queryClient]);
 }
 
 /**

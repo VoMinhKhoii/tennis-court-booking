@@ -13,7 +13,7 @@ import {
 	timeToMinutes,
 } from "@/lib/booking/grid";
 import { computeAmountVnd } from "@/lib/booking/pricing";
-import { type BookingInput, bookingInputSchema } from "@/lib/booking/schemas";
+import { type ManualBookingInput, manualBookingInputSchema } from "@/lib/booking/schemas";
 import { formatVnd } from "@/lib/dashboard/format";
 import { useCourts, useSettings } from "@/lib/queries/dashboard";
 import type { CourtRow } from "@/lib/queries/types";
@@ -102,7 +102,7 @@ export function ManualBookingForm() {
 		setForm((f) => ({ ...f, [key]: value }));
 	}
 
-	function buildInput(): BookingInput {
+	function buildInput(): ManualBookingInput {
 		const base = {
 			courtId: effectiveCourtId,
 			customerName: form.customerName,
@@ -120,7 +120,7 @@ export function ManualBookingForm() {
 	function onSubmit(e: React.FormEvent) {
 		e.preventDefault();
 		setError(null);
-		const parsed = bookingInputSchema.safeParse(buildInput());
+		const parsed = manualBookingInputSchema.safeParse(buildInput());
 		if (!parsed.success) {
 			setError(parsed.error.issues[0]?.message ?? "Please check the form.");
 			return;

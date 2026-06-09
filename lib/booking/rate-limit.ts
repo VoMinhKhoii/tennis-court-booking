@@ -52,3 +52,6 @@ export const RATE_LIMIT = { WINDOW_MS, MAX_PER_WINDOW } as const;
 
 /** Max simultaneous active (pending) bookings per zalo_phone (spec §6). */
 export const MAX_ACTIVE_PENDING = 3;
+
+/** Max simultaneous active reservations (held-not-expired + pending) per phone/IP. */
+export const MAX_ACTIVE_RESERVATIONS = 3;

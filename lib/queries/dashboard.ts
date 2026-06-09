@@ -31,7 +31,9 @@ export function useSettings() {
 			const supabase = createClient();
 			const { data, error } = await supabase
 				.from("settings")
-				.select("id, flat_hourly_rate_vnd, qr_image_path")
+				.select(
+					"id, flat_hourly_rate_vnd, qr_image_path, bank_bin, bank_account_number, bank_account_name, owner_zalo",
+				)
 				.eq("id", 1)
 				.maybeSingle();
 			if (error) {
@@ -53,6 +55,55 @@ export function usePendingBookings() {
 				.select("*")
 				.eq("status", "pending")
 				.order("created_at", { ascending: true });
+			if (error) {
+				throw error;
+			}
+			return (data ?? []) as BookingRow[];
+		},
+	});
+}
+
+/**
+ * Live soft-holds (status='held', not yet expired) — read-only owner visibility
+ * so a blocked slot is explained. Holds stay OUT of the actionable pending queue.
+ */
+export function useHeldBookings() {
+	return useQuery({
+		queryKey: queryKeys.heldBookings(),
+		refetchInterval: 30_000,
+		queryFn: async (): Promise<BookingRow[]> => {
+			const supabase = createClient();
+			const { data, error } = await supabase
+				.from("booking")
+				.select("*")
+				.eq("status", "held")
+				.gt("hold_expires_at", new Date().toISOString())
+				.order("hold_expires_at", { ascending: true });
+			if (error) {
+				throw error;
+			}
+			return (data ?? []) as BookingRow[];
+		},
+	});
+}
+
+/**
+ * Recently expired holds (spec §"Reconciliation surface") — a customer may have
+ * paid during a hold that then expired; surface these so the owner can refund or
+ * re-book. Read-only.
+ */
+export function useExpiredHolds(days = 3) {
+	return useQuery({
+		queryKey: queryKeys.expiredHolds(),
+		queryFn: async (): Promise<BookingRow[]> => {
+			const supabase = createClient();
+			const since = new Date(Date.now() - days * 86_400_000).toISOString();
+			const { data, error } = await supabase
+				.from("booking")
+				.select("*")
+				.eq("status", "expired")
+				.gte("created_at", since)
+				.order("created_at", { ascending: false });
 			if (error) {
 				throw error;
 			}

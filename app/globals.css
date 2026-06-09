@@ -1,26 +1,352 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Inlined from shadcn/dist/tailwind.css — its package export only exposes a
+   "style" condition the bundler won't resolve via @import. Provides the
+   data-* custom variants and accordion keyframes the components rely on. */
+@theme inline {
+	@keyframes accordion-down {
+		from {
+			height: 0;
+		}
+		to {
+			height: var(--radix-accordion-content-height, var(--accordion-panel-height, auto));
+		}
+	}
+	@keyframes accordion-up {
+		from {
+			height: var(--radix-accordion-content-height, var(--accordion-panel-height, auto));
+		}
+		to {
+			height: 0;
+		}
+	}
+}
+
+@custom-variant data-open {
+	&:where([data-state="open"]),
+	&:where([data-open]:not([data-open="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-closed {
+	&:where([data-state="closed"]),
+	&:where([data-closed]:not([data-closed="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-checked {
+	&:where([data-state="checked"]),
+	&:where([data-checked]:not([data-checked="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-unchecked {
+	&:where([data-state="unchecked"]),
+	&:where([data-unchecked]:not([data-unchecked="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-selected {
+	&:where([data-selected="true"]) {
+		@slot;
+	}
+}
+@custom-variant data-disabled {
+	&:where([data-disabled="true"]),
+	&:where([data-disabled]:not([data-disabled="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-active {
+	&:where([data-state="active"]),
+	&:where([data-active]:not([data-active="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-horizontal {
+	&:where([data-orientation="horizontal"]) {
+		@slot;
+	}
+}
+@custom-variant data-vertical {
+	&:where([data-orientation="vertical"]) {
+		@slot;
+	}
+}
+@utility no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+/*
+ * Tennis Court Booking — "Scoreboard Modern" design system.
+ * Light, refined, green-dominant. Built on shadcn/ui (Base UI) with the
+ * locked court ramp (#276221 → #cce7c9) mapped onto shadcn's semantic tokens.
+ */
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+	color-scheme: light;
+
+	/* shadcn semantic tokens, recolored to the court green palette. */
+	--background: #f7faf4; /* paper */
+	--foreground: #12251a; /* ink */
+	--card: #ffffff;
+	--card-foreground: #12251a;
+	--popover: #ffffff;
+	--popover-foreground: #12251a;
+	--primary: #276221; /* court-900 */
+	--primary-foreground: #ffffff;
+	--secondary: #eaf4e6; /* court-50 */
+	--secondary-foreground: #276221;
+	--muted: #eef3ea;
+	--muted-foreground: #3f5a48; /* ink-soft */
+	--accent: #cce7c9; /* court-100 */
+	--accent-foreground: #276221;
+	--destructive: #b42318;
+	--border: #d8e6d2; /* line */
+	--input: #c8dcc0;
+	--ring: #5bb450; /* court-500 */
+	--radius: 0.625rem;
+}
+
+@theme {
+	/* Court green ramp (the locked palette) + two derived ultra-light tints. */
+	--color-court-25: #f3f8f0;
+	--color-court-50: #eaf4e6;
+	--color-court-100: #cce7c9;
+	--color-court-200: #acd8a7;
+	--color-court-300: #8bca84;
+	--color-court-400: #72bf6a;
+	--color-court-500: #5bb450;
+	--color-court-600: #52a447;
+	--color-court-700: #46923c;
+	--color-court-800: #3b8132;
+	--color-court-900: #276221;
+	--color-court-950: #1a4517;
+
+	/* Surfaces + ink, kept in the green family (no pure black/white). */
+	--color-paper: #f7faf4;
+	--color-paper-raised: #ffffff;
+	--color-ink: #12251a;
+	--color-ink-soft: #3f5a48;
+	--color-ink-faint: #6b8472;
+	--color-line: #d8e6d2;
+	--color-line-strong: #bcd3b3;
+
+	/* Neutral chalk for "occupied"/inactive (a desaturated court-grey). */
+	--color-chalk: #e7ece4;
+	--color-chalk-ink: #94a79a;
+
+	/* Functional signal colors — used sparingly, always with icon + label. */
+	--color-signal-amber: #c2810a;
+	--color-signal-amber-soft: #fbf3e0;
+	--color-signal-red: #b42318;
+	--color-signal-red-soft: #fdecea;
+
+	/* Elevation — soft, low "court" shadows. */
+	--shadow-court: 0 1px 2px rgba(18, 37, 26, 0.04), 0 6px 20px -8px rgba(18, 37, 26, 0.12);
+	--shadow-court-lg: 0 2px 4px rgba(18, 37, 26, 0.05), 0 18px 44px -16px rgba(18, 37, 26, 0.22);
+	--shadow-pop: 0 -2px 4px rgba(18, 37, 26, 0.04), 0 -16px 40px -16px rgba(18, 37, 26, 0.18);
+
+	/* Motion */
+	--animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+	--animate-draw: draw 0.6s cubic-bezier(0.65, 0, 0.35, 1) both;
+	--animate-live: live-pulse 2s ease-in-out infinite;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+	/* Fonts (next/font injects the underlying vars in layout.tsx). */
+	--font-sans: var(--font-be-vietnam);
+	--font-heading: var(--font-saira);
+	--font-display: var(--font-saira);
+	--font-mono: var(--font-geist-mono);
+
+	/* shadcn semantic color utilities. */
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+
+	--radius-sm: calc(var(--radius) * 0.6);
+	--radius-md: calc(var(--radius) * 0.8);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) * 1.4);
+	--radius-2xl: calc(var(--radius) * 1.8);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	html {
+		@apply font-sans;
+		-webkit-text-size-adjust: 100%;
+	}
+	body {
+		color: var(--color-ink);
+		background-color: var(--color-paper);
+		/* Faint court-surface depth: a soft green wash, no clichés. */
+		background-image:
+			radial-gradient(70rem 40rem at 100% -10%, rgba(91, 180, 80, 0.08), transparent 60%),
+			radial-gradient(50rem 30rem at -10% 110%, rgba(39, 98, 33, 0.06), transparent 55%);
+		background-attachment: fixed;
+		-webkit-font-smoothing: antialiased;
+		text-rendering: optimizeLegibility;
+	}
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes fade-up {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes draw {
+	from {
+		transform: scaleX(0);
+	}
+	to {
+		transform: scaleX(1);
+	}
+}
+
+@keyframes live-pulse {
+	0%,
+	100% {
+		opacity: 1;
+		box-shadow: 0 0 0 0 rgba(91, 180, 80, 0.5);
+	}
+	50% {
+		opacity: 0.7;
+		box-shadow: 0 0 0 4px rgba(91, 180, 80, 0);
+	}
+}
+
+/* Landing background: court photo under a light paper scrim. Stronger at the
+   top-left (where the hero sits), clearing toward the lower-right so the court
+   stays visible. Keeps text legible without hiding the image. */
+.home-scrim {
+	background-image:
+		linear-gradient(
+			115deg,
+			rgba(247, 250, 244, 0.95) 0%,
+			rgba(247, 250, 244, 0.82) 40%,
+			rgba(247, 250, 244, 0.42) 78%,
+			rgba(247, 250, 244, 0.2) 100%
+		),
+		linear-gradient(
+			to bottom,
+			rgba(247, 250, 244, 0.8) 0%,
+			rgba(247, 250, 244, 0.2) 45%,
+			rgba(247, 250, 244, 0.55) 100%
+		);
+}
+
+/* In-app background: a slow, lively ombre drifting through the light greens.
+   Two radial blooms + a diagonal wash, all panning via background-position. */
+.app-ombre {
+	background-color: var(--color-paper);
+	background-image:
+		radial-gradient(60rem 42rem at 12% 18%, rgba(140, 202, 132, 0.4), transparent 60%),
+		radial-gradient(52rem 40rem at 88% 82%, rgba(172, 216, 167, 0.45), transparent 62%),
+		linear-gradient(
+			120deg,
+			var(--color-court-25),
+			var(--color-court-50),
+			var(--color-court-100),
+			var(--color-court-50),
+			var(--color-court-25)
+		);
+	background-size:
+		200% 200%,
+		200% 200%,
+		220% 220%;
+	background-repeat: no-repeat;
+	animation: ombre-drift 26s ease-in-out infinite;
+}
+
+@keyframes ombre-drift {
+	0% {
+		background-position:
+			0% 50%,
+			100% 50%,
+			0% 50%;
+	}
+	50% {
+		background-position:
+			100% 50%,
+			0% 50%,
+			100% 50%;
+	}
+	100% {
+		background-position:
+			0% 50%,
+			100% 50%,
+			0% 50%;
+	}
+}
+
+/* Net-line hatch — the court-net motif for occupied/decorative surfaces. */
+.net-hatch {
+	background-image: repeating-linear-gradient(
+		45deg,
+		rgba(18, 37, 26, 0.06),
+		rgba(18, 37, 26, 0.06) 1px,
+		transparent 1px,
+		transparent 6px
+	);
+}
+
+/* Chalk-line underline that draws in on load. */
+.chalk-rule {
+	transform-origin: left center;
+}
+
+/* Slim scrollbar for the horizontally-scrolling grid (still scrollable). */
+.scrollbar-thin {
+	scrollbar-width: thin;
+	scrollbar-color: var(--color-line-strong) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+	height: 8px;
+	width: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+	background-color: var(--color-line-strong);
+	border-radius: 9999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
 }

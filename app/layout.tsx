@@ -1,14 +1,27 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Be_Vietnam_Pro, Geist_Mono, Saira } from "next/font/google";
 import "./globals.css";
+import { SiteBackground } from "@/components/site-background";
+import { Toaster } from "@/components/ui/sonner";
+import { cn } from "@/lib/utils";
 import { Providers } from "./providers";
 
-const geistSans = Geist({
-	variable: "--font-geist-sans",
-	subsets: ["latin"],
+// Display: athletic grotesque for headings + scoreboard numerals.
+const saira = Saira({
+	variable: "--font-saira",
+	subsets: ["latin", "vietnamese"],
+	weight: ["500", "600", "700", "800"],
 });
 
+// Body: purpose-built for Vietnamese, refined and highly legible.
+const beVietnam = Be_Vietnam_Pro({
+	variable: "--font-be-vietnam",
+	subsets: ["latin", "vietnamese"],
+	weight: ["400", "500", "600", "700"],
+});
+
+// Tabular numerals for the time axis, amounts and references.
 const geistMono = Geist_Mono({
 	variable: "--font-geist-mono",
 	subsets: ["latin"],
@@ -16,11 +29,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
 	title: {
-		default: "Tennis Court Booking",
-		template: "%s | Tennis Court Booking",
+		default: "Đặt sân tennis",
+		template: "%s | Đặt sân tennis",
 	},
-	description: "Book a tennis court — view live availability and reserve your slot.",
-	applicationName: "Tennis Court Booking",
+	description: "Xem lịch trống theo thời gian thực và đặt sân tennis của bạn.",
+	applicationName: "Đặt sân tennis",
 };
 
 export default function RootLayout({
@@ -29,9 +42,14 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	return (
-		<html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-			<body className="min-h-full flex flex-col">
+		<html
+			lang="vi"
+			className={cn("h-full antialiased", saira.variable, beVietnam.variable, geistMono.variable)}
+		>
+			<body className="flex min-h-full flex-col font-sans">
+				<SiteBackground />
 				<Providers>{children}</Providers>
+				<Toaster />
 				<Analytics />
 			</body>
 		</html>

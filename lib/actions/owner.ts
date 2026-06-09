@@ -12,6 +12,7 @@ import {
 	type SettingsInput,
 	settingsInputSchema,
 } from "@/lib/booking/schemas";
+import { normalizeOwnerZalo } from "@/lib/booking/zalo";
 import { createClient } from "@/lib/supabase/server";
 import { type ActionResult, fail, ok } from "./types";
 
@@ -66,6 +67,13 @@ export async function confirmBooking(input: ConfirmInput): Promise<ActionResult<
 	if (!data) {
 		return fail("Booking is no longer pending.");
 	}
+
+	// Best-effort audit trail (disputes); never fail the confirm on audit error.
+	const actorUid = (await guard.supabase.auth.getUser()).data.user?.id ?? null;
+	await guard.supabase
+		.from("booking_audit")
+		.insert({ booking_id: data.id, action: "confirm", actor_uid: actorUid });
+
 	return ok({ id: data.id });
 }
 
@@ -94,6 +102,13 @@ export async function rejectBooking(input: RejectInput): Promise<ActionResult<{ 
 	if (!data) {
 		return fail("Booking is no longer pending.");
 	}
+
+	// Best-effort audit trail (disputes); never fail the reject on audit error.
+	const actorUid = (await guard.supabase.auth.getUser()).data.user?.id ?? null;
+	await guard.supabase
+		.from("booking_audit")
+		.insert({ booking_id: data.id, action: "reject", actor_uid: actorUid });
+
 	return ok({ id: data.id });
 }
 
@@ -120,8 +135,9 @@ export async function createManualBooking(
 	}
 	const data = parsed.data;
 
+	// Owner's court pick is authoritative — force it (no rebalancing). Manual
+	// monthly bookings use a single weekday, passed as a one-element array.
 	const { data: rpcRows, error } = await guard.supabase.rpc("create_pending_booking", {
-		p_court_id: data.courtId,
 		p_type: data.type,
 		p_customer_name: data.customerName,
 		p_zalo_phone: data.zaloPhone,
@@ -129,8 +145,10 @@ export async function createManualBooking(
 		p_start_time: data.startTime,
 		p_block_count: data.blockCount,
 		p_month: data.type === "monthly" ? data.month : null,
-		p_weekday: data.type === "monthly" ? data.weekday : null,
+		p_weekdays: data.type === "monthly" ? [data.weekday] : null,
 		p_date: data.type === "adhoc" ? data.date : null,
+		p_preferred_court_id: data.courtId,
+		p_force_court: true,
 	});
 	if (error) {
 		return fail(error.message);
@@ -235,9 +253,20 @@ export async function updateSettings(input: SettingsInput): Promise<ActionResult
 	if (!guard.ok) {
 		return fail(guard.error);
 	}
+	const s = parsed.data;
+	// Bank fields are optional; store null when blank so the public flow can detect
+	// "not configured" and fall back to the static QR.
+	const blankToNull = (v: string | undefined) => (v && v.trim() !== "" ? v.trim() : null);
 	const { data, error } = await guard.supabase
 		.from("settings")
-		.update({ flat_hourly_rate_vnd: parsed.data.flatHourlyRateVnd })
+		.update({
+			flat_hourly_rate_vnd: s.flatHourlyRateVnd,
+			bank_bin: blankToNull(s.bankBin),
+			bank_account_number: blankToNull(s.bankAccountNumber),
+			bank_account_name: blankToNull(s.bankAccountName),
+			// Store the normalized https form (or null) — validated by the schema.
+			owner_zalo: s.ownerZalo ? normalizeOwnerZalo(s.ownerZalo) : null,
+		})
 		.eq("id", 1)
 		.select("id")
 		.maybeSingle();

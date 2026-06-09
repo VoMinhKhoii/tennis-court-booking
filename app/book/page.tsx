@@ -1,25 +1,46 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { BookingForm } from "@/components/booking/booking-form";
+import { BookingForm, type BookingInitial } from "@/components/booking/booking-form";
 
 export const metadata: Metadata = {
-	title: "Book a court",
-	description: "Request a tennis court booking — one-off or monthly.",
+	title: "Đặt sân",
+	description: "Yêu cầu đặt sân tennis — một buổi hoặc hàng tháng.",
 };
 
-export default function BookPage() {
-	return (
-		<main className="mx-auto w-full max-w-md flex-1 px-4 py-6">
-			<header className="mb-5">
-				<Link href="/availability" className="text-sm text-emerald-700 dark:text-emerald-400">
-					← Availability
-				</Link>
-				<h1 className="mt-2 text-2xl font-semibold tracking-tight">Book a court</h1>
-				<p className="text-sm text-zinc-600 dark:text-zinc-400">
-					One-off or monthly. The owner confirms each request manually.
-				</p>
-			</header>
-			<BookingForm />
-		</main>
-	);
+type SearchParams = Record<string, string | string[] | undefined>;
+
+/** Build prefill from an owner deep-link (e.g. /book?type=monthly&weekday=2,4,6&start=18:00&dur=4). */
+function initialFromParams(sp: SearchParams): BookingInitial {
+	const str = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+	const num = (v: string | string[] | undefined) => {
+		const n = Number(str(v));
+		return Number.isFinite(n) ? n : undefined;
+	};
+	// weekday(s) may be a single value or a CSV list (2,4,6).
+	const csvWeekdays = (v: string | string[] | undefined): number[] | undefined => {
+		const s = str(v);
+		if (!s) return undefined;
+		const arr = s
+			.split(",")
+			.map((x) => Number(x.trim()))
+			.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+		return arr.length ? arr : undefined;
+	};
+	const type = str(sp.type);
+	return {
+		type: type === "monthly" || type === "adhoc" ? type : undefined,
+		preferredCourtId: str(sp.court),
+		date: str(sp.date),
+		month: str(sp.month),
+		weekdays: csvWeekdays(sp.weekdays ?? sp.weekday),
+		startTime: str(sp.start),
+		blockCount: num(sp.dur),
+	};
+}
+
+export default async function BookPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+	const sp = await searchParams;
+	const initial = initialFromParams(sp);
+	const lockSlot = (Array.isArray(sp.lock) ? sp.lock[0] : sp.lock) === "1";
+
+	return <BookingForm initial={initial} lockSlot={lockSlot} />;
 }

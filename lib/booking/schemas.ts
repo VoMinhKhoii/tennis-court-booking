@@ -10,6 +10,7 @@
 
 import { z } from "zod";
 import { MAX_BLOCK_COUNT } from "./constants";
+import { normalizeOwnerZalo } from "./zalo";
 
 /** YYYY-MM-DD ICT calendar date. */
 const isoDate = z
@@ -50,7 +51,6 @@ const courtId = z.uuid("invalid court id");
 const weekday = z.number().int().min(0).max(6);
 
 const baseBookingFields = {
-	courtId,
 	customerName,
 	zaloPhone,
 	groupSize,
@@ -61,18 +61,24 @@ const baseBookingFields = {
 /**
  * Public booking input. The form builds this; the server action safeParses it
  * before calling create_pending_booking. Discriminated on `type`.
+ *
+ * No court is chosen by the customer — the server auto-assigns a court (balanced
+ * across courts), honoring an optional `preferredCourtId` when it is free for the
+ * whole series. Monthly bookings can target multiple weekdays in one go.
  */
 export const bookingInputSchema = z.discriminatedUnion("type", [
 	z.object({
 		type: z.literal("adhoc"),
 		date: isoDate,
+		preferredCourtId: courtId.optional(),
 		...baseBookingFields,
 	}),
 	z.object({
 		type: z.literal("monthly"),
 		// Any date within the target calendar month.
 		month: isoDate,
-		weekday,
+		weekdays: z.array(weekday).min(1, "pick at least one weekday").max(7),
+		preferredCourtId: courtId.optional(),
 		...baseBookingFields,
 	}),
 ]);
@@ -94,16 +100,49 @@ export const courtInputSchema = z
 
 export type CourtInput = z.infer<typeof courtInputSchema>;
 
-/** Owner settings update (flat rate; QR path is set via the upload flow). */
+/**
+ * Owner settings update (flat rate + bank details for dynamic VietQR). QR image
+ * path is set via the separate upload flow. Bank fields are optional — when set
+ * they drive the VietQR (amount + reference embedded); when blank the flow falls
+ * back to the static uploaded QR.
+ */
 export const settingsInputSchema = z.object({
 	flatHourlyRateVnd: z.number().int("rate must be an integer").positive("rate must be > 0"),
+	bankBin: z.string().trim().max(20).optional(),
+	bankAccountNumber: z.string().trim().max(40).optional(),
+	bankAccountName: z.string().trim().max(120).optional(),
+	ownerZalo: z
+		.string()
+		.trim()
+		.max(200)
+		.optional()
+		.refine((v) => v === undefined || v === "" || normalizeOwnerZalo(v) !== null, {
+			message: "Zalo phải là số điện thoại hoặc link zalo.me",
+		}),
 });
 
 export type SettingsInput = z.infer<typeof settingsInputSchema>;
 
-/** Owner manual booking (straight to confirmed, source='owner'). Same shape as public. */
-export const manualBookingInputSchema = bookingInputSchema;
-export type ManualBookingInput = BookingInput;
+/**
+ * Owner manual booking (straight to confirmed, source='owner'). The owner picks
+ * an explicit court (authoritative — no rebalancing) and a single weekday.
+ */
+export const manualBookingInputSchema = z.discriminatedUnion("type", [
+	z.object({
+		type: z.literal("adhoc"),
+		date: isoDate,
+		courtId,
+		...baseBookingFields,
+	}),
+	z.object({
+		type: z.literal("monthly"),
+		month: isoDate,
+		weekday,
+		courtId,
+		...baseBookingFields,
+	}),
+]);
+export type ManualBookingInput = z.infer<typeof manualBookingInputSchema>;
 
 /** Reject action input. */
 export const rejectInputSchema = z.object({

@@ -1,9 +1,11 @@
 -- Tennis Court Booking v1 — seed data (Phase 1).
 -- Loaded by `supabase db reset` (config.toml db.seed.sql_paths). Idempotent.
 
--- One demo court: open 06:00–21:00 ICT (30 blocks/day), active.
+-- Demo courts: three, open 06:00–21:00 ICT (30 blocks/day), active. Multiple
+-- courts let the auto-assign + balancing flow be exercised (owner: up to 4).
 insert into public.court (name, open_time, close_time, is_active)
-select 'Court 1', time '06:00', time '21:00', true
+select v.name, time '06:00', time '21:00', true
+from (values ('Sân 1'), ('Sân 2'), ('Sân 3')) as v(name)
 where not exists (select 1 from public.court);
 
 -- Single settings row with a sample flat rate (200,000 VND/hour).
