@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { type ReactNode, useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +14,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { StatusPill } from "@/components/ui/status-pill";
-import { type BookingReceipt, createHold, getHold } from "@/lib/actions/create-booking";
+import { createHold } from "@/lib/actions/create-booking";
 import { MAX_BLOCK_COUNT } from "@/lib/booking/constants";
 import { enumerateSlotDatesMulti, ictToday } from "@/lib/booking/dates";
 import { formatVnd } from "@/lib/booking/format";
@@ -28,7 +30,7 @@ import { computeAmountVnd } from "@/lib/booking/pricing";
 import { type BookingInput, bookingInputSchema } from "@/lib/booking/schemas";
 import { useAvailabilityAllCourts } from "@/lib/queries/availability";
 import { usePublicCourts, usePublicSettings } from "@/lib/queries/public";
-import { BookingDoneScreen, PaymentStep } from "./booking-receipt";
+import { CheckoutShell, OrderSummary } from "./checkout-shell";
 import { clearCheckout, loadCheckout, saveCheckout } from "./checkout-storage";
 
 // Chip order Mon→Sun (values stay 0=Sun..6=Sat to match Postgres dow).
@@ -83,6 +85,7 @@ export function BookingForm({
 	initial?: BookingInitial;
 	lockSlot?: boolean;
 }) {
+	const router = useRouter();
 	const { data: courts } = usePublicCourts();
 	const { data: settings } = usePublicSettings();
 	const activeCourts = useMemo(() => (courts ?? []).filter((c) => c.is_active), [courts]);
@@ -102,28 +105,16 @@ export function BookingForm({
 		month: initial?.month ?? currentMonth,
 		weekdays: initial?.weekdays ?? [],
 	}));
-	const [stage, setStage] = useState<"form" | "review" | "payment" | "done">("form");
+	const [stage, setStage] = useState<"form" | "review">("form");
 	const [error, setError] = useState<string | null>(null);
-	const [receipt, setReceipt] = useState<BookingReceipt | null>(null);
 	const [pending, startTransition] = useTransition();
 
-	// Resume a live hold after a refresh / mobile tab eviction (spec §refresh-resume).
+	// Tab-close recovery: if a live hold is saved locally, offer to resume it.
+	// The hold itself lives on /book/[reference]; this is just a convenience link.
+	const [resumeRef, setResumeRef] = useState<string | null>(null);
 	useEffect(() => {
 		const saved = loadCheckout();
-		if (!saved) return;
-		let active = true;
-		getHold(saved.reference).then((r) => {
-			if (!active) return;
-			if (r.ok) {
-				setReceipt(r.data);
-				setStage("payment");
-			} else {
-				clearCheckout();
-			}
-		});
-		return () => {
-			active = false;
-		};
+		if (saved) setResumeRef(saved.reference);
 	}, []);
 
 	// Union operating window across all courts (court is auto-assigned later).
@@ -243,6 +234,9 @@ export function BookingForm({
 		setStage("review");
 	}
 
+	// Confirm → create the soft-hold, then redirect to the hosted-checkout page
+	// keyed by the reference. The reference in the URL is the source of truth, so
+	// the payment step survives any reload (no modal to evaporate).
 	function onConfirm() {
 		setError(null);
 		const parsed = bookingInputSchema.safeParse(buildInput());
@@ -254,12 +248,11 @@ export function BookingForm({
 		startTransition(async () => {
 			const result = await createHold(parsed.data);
 			if (result.ok) {
-				setReceipt(result.data);
 				saveCheckout({
 					reference: result.data.reference,
 					holdExpiresAt: result.data.holdExpiresAt,
 				});
-				setStage("payment");
+				router.replace(`/book/${result.data.reference}`);
 			} else {
 				setError(result.error);
 				setStage("form");
@@ -267,38 +260,12 @@ export function BookingForm({
 		});
 	}
 
-	if (stage === "payment" && receipt) {
-		return (
-			<div className="space-y-5">
-				<Stepper stage={stage} />
-				<PaymentStep
-					receipt={receipt}
-					onExpired={() => {
-						clearCheckout();
-						setReceipt(null);
-						setStage("form");
-						setError("Hết thời gian giữ chỗ. Vui lòng đặt lại.");
-					}}
-					onDone={() => {
-						clearCheckout();
-						setStage("done");
-					}}
-				/>
-			</div>
-		);
-	}
-
-	if (stage === "done" && receipt) {
-		return (
-			<div className="space-y-5">
-				<Stepper stage={stage} />
-				<BookingDoneScreen receipt={receipt} />
-			</div>
-		);
-	}
-
 	if (activeCourts.length === 0) {
-		return <p className="text-sm text-ink-faint">Hiện chưa có sân nào mở đặt.</p>;
+		return (
+			<main className="mx-auto w-full max-w-lg flex-1 px-4 py-6 sm:px-6">
+				<p className="text-sm text-ink-faint">Hiện chưa có sân nào mở đặt.</p>
+			</main>
+		);
 	}
 
 	const times = startTimeOptions(openMin, closeMin, form.blockCount);
@@ -318,25 +285,329 @@ export function BookingForm({
 	];
 	const preferredCourtName = activeCourts.find((c) => c.id === form.preferredCourtId)?.name ?? null;
 
-	// ---- Review stage: read-only bill, then proceed to payment. -------------
+	// ---- Live order summary (the Stripe sidebar) ---------------------------
+	const weekdaysLabel = WEEKDAY_CHIPS.filter((w) => form.weekdays.includes(w.value))
+		.map((w) => w.label)
+		.join(", ");
+	const summaryRows: { label: string; value: ReactNode }[] = [
+		{ label: "Loại", value: form.type === "monthly" ? "Hàng tháng" : "Một buổi" },
+	];
+	if (form.startTime) {
+		summaryRows.push({
+			label: "Khung giờ",
+			value: (
+				<span className="font-mono font-bold tabular-nums">
+					{form.startTime}
+					{endTime ? `–${endTime}` : ""} ({form.blockCount / 2} giờ)
+				</span>
+			),
+		});
+	}
+	if (form.type === "monthly") {
+		summaryRows.push({ label: "Các thứ", value: weekdaysLabel || "—" });
+	}
+	summaryRows.push({ label: "Sân", value: preferredCourtName ?? "Tự động xếp sân" });
+	if (enumeratedDates.length > 0) {
+		summaryRows.push({ label: "Số buổi", value: String(enumeratedDates.length) });
+	}
+	const totalNode = amountPreview === null ? "—" : formatVnd(amountPreview);
+	const summaryNode = (
+		<OrderSummary
+			rows={summaryRows}
+			amount={totalNode}
+			note={
+				amountPreview !== null && form.type === "monthly" ? (
+					<p className="text-xs text-ink-faint">
+						{enumeratedDates.length} buổi × {form.blockCount / 2} giờ
+					</p>
+				) : undefined
+			}
+		/>
+	);
+
+	// ---- Review stage: read-only details, then create the hold. -------------
 	if (stage === "review") {
 		return (
-			<div className="space-y-5">
-				<Stepper stage={stage} />
-				<ReviewBill
-					type={form.type}
-					startTime={form.startTime}
-					endTime={endTime}
-					blockCount={form.blockCount}
-					weekdays={form.weekdays}
-					preferredCourtName={preferredCourtName}
-					customerName={form.customerName}
-					zaloPhone={form.zaloPhone}
-					groupSize={form.groupSize}
-					dates={enumeratedDates}
-					isDateTaken={isDateTaken}
-					amount={amountPreview}
-				/>
+			<CheckoutShell summary={summaryNode} total={totalNode}>
+				<div className="space-y-5">
+					<Stepper stage={stage} />
+					<ReviewBill
+						type={form.type}
+						startTime={form.startTime}
+						endTime={endTime}
+						blockCount={form.blockCount}
+						weekdays={form.weekdays}
+						preferredCourtName={preferredCourtName}
+						customerName={form.customerName}
+						zaloPhone={form.zaloPhone}
+						groupSize={form.groupSize}
+						dates={enumeratedDates}
+						isDateTaken={isDateTaken}
+					/>
+
+					{error && (
+						<p className="rounded-lg bg-signal-red-soft px-3 py-2 text-sm font-medium text-signal-red">
+							{error}
+						</p>
+					)}
+
+					<div className="flex gap-3">
+						<Button
+							type="button"
+							variant="outline"
+							size="lg"
+							className="flex-1"
+							disabled={pending}
+							onClick={() => setStage("form")}
+						>
+							Quay lại
+						</Button>
+						<Button
+							type="button"
+							size="lg"
+							className="flex-[2]"
+							disabled={pending}
+							onClick={onConfirm}
+						>
+							{pending ? "Đang xử lý…" : "Tiến hành thanh toán"}
+						</Button>
+					</div>
+					<p className="text-center text-xs text-ink-faint">
+						Bước tiếp theo hiển thị mã QR chuyển khoản. Chủ sân xác nhận sau khi nhận tiền.
+					</p>
+				</div>
+			</CheckoutShell>
+		);
+	}
+
+	// ---- Form stage --------------------------------------------------------
+	return (
+		<CheckoutShell summary={summaryNode} total={totalNode}>
+			<form onSubmit={onReview} className="space-y-5">
+				<Stepper stage="form" />
+
+				{resumeRef && (
+					<div className="flex items-center justify-between gap-3 rounded-lg border border-court-300 bg-court-50 px-3 py-2.5 text-sm">
+						<span className="text-court-900">Bạn đang có một lượt giữ chỗ chưa hoàn tất.</span>
+						<div className="flex shrink-0 items-center gap-1">
+							<Link
+								href={`/book/${resumeRef}`}
+								className="font-semibold text-court-700 hover:underline"
+							>
+								Tiếp tục
+							</Link>
+							<button
+								type="button"
+								onClick={() => {
+									clearCheckout();
+									setResumeRef(null);
+								}}
+								className="cursor-pointer rounded px-1.5 text-ink-faint hover:text-ink"
+								aria-label="Bỏ qua"
+							>
+								✕
+							</button>
+						</div>
+					</div>
+				)}
+
+				{lockSlot ? (
+					<LockedTimeSummary
+						type={form.type}
+						startTime={form.startTime}
+						endTime={endTime}
+						blockCount={form.blockCount}
+					/>
+				) : (
+					<div className="space-y-1.5">
+						<Label>Loại đặt sân</Label>
+						<SegToggle
+							options={[
+								{ value: "adhoc", label: "Một buổi" },
+								{ value: "monthly", label: "Hàng tháng" },
+							]}
+							value={form.type}
+							onChange={(v) => update("type", v as FormState["type"])}
+						/>
+					</div>
+				)}
+
+				{form.type === "adhoc" ? (
+					!lockSlot && (
+						<Field id="date" label="Ngày">
+							<Input
+								id="date"
+								type="date"
+								required
+								min={today}
+								value={form.date}
+								onChange={(e) => update("date", e.target.value)}
+								className="h-11"
+							/>
+						</Field>
+					)
+				) : (
+					<>
+						<div className="space-y-1.5">
+							<Label>Tháng áp dụng</Label>
+							<SegToggle
+								options={[currentMonth, nextMonthStart(currentMonth)].map((m) => ({
+									value: m,
+									label: monthLabel(m),
+								}))}
+								value={form.month}
+								onChange={(v) => update("month", v)}
+							/>
+						</div>
+						<div className="space-y-1.5">
+							<Label>Các thứ trong tuần</Label>
+							<div className="flex flex-wrap gap-1.5">
+								{WEEKDAY_CHIPS.map((w) => {
+									const on = form.weekdays.includes(w.value);
+									return (
+										<button
+											key={w.value}
+											type="button"
+											onClick={() => toggleWeekday(w.value)}
+											aria-pressed={on}
+											className={`h-10 w-10 cursor-pointer rounded-md text-sm font-semibold transition-colors ${
+												on
+													? "bg-court-900 text-white shadow-court"
+													: "border border-line-strong bg-paper-raised text-ink-soft hover:border-court-500"
+											}`}
+										>
+											{w.label}
+										</button>
+									);
+								})}
+							</div>
+							<p className="text-xs text-ink-faint">
+								Chọn một hoặc nhiều thứ — sân giữ vào các thứ đó hằng tuần.
+							</p>
+						</div>
+					</>
+				)}
+
+				{!lockSlot && (
+					<div className="grid grid-cols-2 gap-3">
+						<Field id="start" label="Giờ bắt đầu">
+							<Select
+								items={timeItems}
+								value={form.startTime}
+								onValueChange={(v) => update("startTime", String(v))}
+							>
+								<SelectTrigger id="start" className="h-11 w-full">
+									<SelectValue placeholder="Chọn giờ" />
+								</SelectTrigger>
+								<SelectContent>
+									{times.map((t) => (
+										<SelectItem key={t} value={t}>
+											{t}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</Field>
+						<Field id="duration" label="Thời lượng">
+							<Select
+								items={durationItems}
+								value={String(form.blockCount)}
+								onValueChange={(v) => update("blockCount", Number(v))}
+							>
+								<SelectTrigger id="duration" className="h-11 w-full">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{Array.from({ length: MAX_BLOCK_COUNT }, (_, i) => i + 1).map((n) => (
+										<SelectItem key={n} value={String(n)}>
+											{n / 2} giờ
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</Field>
+					</div>
+				)}
+
+				<Field id="court" label="Sân ưu tiên">
+					<Select
+						items={courtItems}
+						value={form.preferredCourtId}
+						onValueChange={(v) => update("preferredCourtId", String(v))}
+					>
+						<SelectTrigger id="court" className="h-11 w-full">
+							<SelectValue placeholder="Tự động (cân bằng)" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="">Tự động (cân bằng)</SelectItem>
+							{activeCourts.map((c) => (
+								<SelectItem key={c.id} value={c.id}>
+									{c.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</Field>
+
+				<div className="grid gap-4 sm:grid-cols-2">
+					<Field id="name" label="Họ và tên">
+						<Input
+							id="name"
+							type="text"
+							required
+							value={form.customerName}
+							onChange={(e) => update("customerName", e.target.value)}
+							placeholder="Nguyễn Văn A"
+							className="h-11"
+						/>
+					</Field>
+					<Field id="zalo" label="Số Zalo">
+						<Input
+							id="zalo"
+							type="tel"
+							required
+							inputMode="tel"
+							value={form.zaloPhone}
+							onChange={(e) => update("zaloPhone", e.target.value)}
+							placeholder="0901234567"
+							className="h-11"
+						/>
+					</Field>
+				</div>
+
+				<Field id="group" label="Số người">
+					<Input
+						id="group"
+						type="number"
+						min={1}
+						value={form.groupSize}
+						onChange={(e) => update("groupSize", Number(e.target.value))}
+						className="h-11 w-32"
+					/>
+				</Field>
+
+				{enumeratedDates.length > 0 && (
+					<div className="rounded-lg border border-line bg-paper p-3">
+						<div className="mb-2 text-sm font-semibold text-ink">
+							{form.type === "monthly"
+								? `Các buổi trong tháng (${enumeratedDates.length})`
+								: "Buổi đã chọn"}
+						</div>
+						<ul className="space-y-1.5 text-sm">
+							{enumeratedDates.map((d) => {
+								const taken = isDateTaken(d);
+								return (
+									<li key={d} className="flex items-center justify-between gap-2">
+										<span className="text-ink-soft">{dateLabel(d)}</span>
+										<StatusPill tone={taken ? "taken" : "free"}>
+											{taken ? "kín sân" : "còn trống"}
+										</StatusPill>
+									</li>
+								);
+							})}
+						</ul>
+					</div>
+				)}
 
 				{error && (
 					<p className="rounded-lg bg-signal-red-soft px-3 py-2 text-sm font-medium text-signal-red">
@@ -344,268 +615,26 @@ export function BookingForm({
 					</p>
 				)}
 
-				<div className="flex gap-3">
-					<Button
-						type="button"
-						variant="outline"
-						size="lg"
-						className="flex-1"
-						disabled={pending}
-						onClick={() => setStage("form")}
-					>
-						Quay lại
-					</Button>
-					<Button
-						type="button"
-						size="lg"
-						className="flex-[2]"
-						disabled={pending}
-						onClick={onConfirm}
-					>
-						{pending ? "Đang xử lý…" : "Tiến hành thanh toán"}
-					</Button>
-				</div>
+				<Button type="submit" size="lg" disabled={pending} className="w-full">
+					Tiếp tục
+				</Button>
 				<p className="text-center text-xs text-ink-faint">
-					Bước tiếp theo hiển thị mã QR chuyển khoản. Chủ sân xác nhận sau khi nhận tiền.
+					Bạn sẽ xem lại thông tin trước khi thanh toán.
 				</p>
-			</div>
-		);
-	}
-
-	// ---- Form stage --------------------------------------------------------
-	return (
-		<form onSubmit={onReview} className="space-y-5">
-			<Stepper stage="form" />
-			{lockSlot ? (
-				<LockedTimeSummary
-					type={form.type}
-					startTime={form.startTime}
-					endTime={endTime}
-					blockCount={form.blockCount}
-				/>
-			) : (
-				<div className="space-y-1.5">
-					<Label>Loại đặt sân</Label>
-					<SegToggle
-						options={[
-							{ value: "adhoc", label: "Một buổi" },
-							{ value: "monthly", label: "Hàng tháng" },
-						]}
-						value={form.type}
-						onChange={(v) => update("type", v as FormState["type"])}
-					/>
-				</div>
-			)}
-
-			{form.type === "adhoc" ? (
-				!lockSlot && (
-					<Field id="date" label="Ngày">
-						<Input
-							id="date"
-							type="date"
-							required
-							min={today}
-							value={form.date}
-							onChange={(e) => update("date", e.target.value)}
-							className="h-11"
-						/>
-					</Field>
-				)
-			) : (
-				<>
-					<div className="space-y-1.5">
-						<Label>Tháng áp dụng</Label>
-						<SegToggle
-							options={[currentMonth, nextMonthStart(currentMonth)].map((m) => ({
-								value: m,
-								label: monthLabel(m),
-							}))}
-							value={form.month}
-							onChange={(v) => update("month", v)}
-						/>
-					</div>
-					<div className="space-y-1.5">
-						<Label>Các thứ trong tuần</Label>
-						<div className="flex flex-wrap gap-1.5">
-							{WEEKDAY_CHIPS.map((w) => {
-								const on = form.weekdays.includes(w.value);
-								return (
-									<button
-										key={w.value}
-										type="button"
-										onClick={() => toggleWeekday(w.value)}
-										aria-pressed={on}
-										className={`h-10 w-10 cursor-pointer rounded-md text-sm font-semibold transition-colors ${
-											on
-												? "bg-court-900 text-white shadow-court"
-												: "border border-line-strong bg-paper-raised text-ink-soft hover:border-court-500"
-										}`}
-									>
-										{w.label}
-									</button>
-								);
-							})}
-						</div>
-						<p className="text-xs text-ink-faint">
-							Chọn một hoặc nhiều thứ — sân giữ vào các thứ đó hằng tuần.
-						</p>
-					</div>
-				</>
-			)}
-
-			{!lockSlot && (
-				<div className="grid grid-cols-2 gap-3">
-					<Field id="start" label="Giờ bắt đầu">
-						<Select
-							items={timeItems}
-							value={form.startTime}
-							onValueChange={(v) => update("startTime", String(v))}
-						>
-							<SelectTrigger id="start" className="h-11 w-full">
-								<SelectValue placeholder="Chọn giờ" />
-							</SelectTrigger>
-							<SelectContent>
-								{times.map((t) => (
-									<SelectItem key={t} value={t}>
-										{t}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</Field>
-					<Field id="duration" label="Thời lượng">
-						<Select
-							items={durationItems}
-							value={String(form.blockCount)}
-							onValueChange={(v) => update("blockCount", Number(v))}
-						>
-							<SelectTrigger id="duration" className="h-11 w-full">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{Array.from({ length: MAX_BLOCK_COUNT }, (_, i) => i + 1).map((n) => (
-									<SelectItem key={n} value={String(n)}>
-										{n / 2} giờ
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</Field>
-				</div>
-			)}
-
-			<Field id="court" label="Sân ưu tiên">
-				<Select
-					items={courtItems}
-					value={form.preferredCourtId}
-					onValueChange={(v) => update("preferredCourtId", String(v))}
-				>
-					<SelectTrigger id="court" className="h-11 w-full">
-						<SelectValue placeholder="Tự động (cân bằng)" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="">Tự động (cân bằng)</SelectItem>
-						{activeCourts.map((c) => (
-							<SelectItem key={c.id} value={c.id}>
-								{c.name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</Field>
-
-			<div className="grid gap-4 sm:grid-cols-2">
-				<Field id="name" label="Họ và tên">
-					<Input
-						id="name"
-						type="text"
-						required
-						value={form.customerName}
-						onChange={(e) => update("customerName", e.target.value)}
-						placeholder="Nguyễn Văn A"
-						className="h-11"
-					/>
-				</Field>
-				<Field id="zalo" label="Số Zalo">
-					<Input
-						id="zalo"
-						type="tel"
-						required
-						inputMode="tel"
-						value={form.zaloPhone}
-						onChange={(e) => update("zaloPhone", e.target.value)}
-						placeholder="0901234567"
-						className="h-11"
-					/>
-				</Field>
-			</div>
-
-			<Field id="group" label="Số người">
-				<Input
-					id="group"
-					type="number"
-					min={1}
-					value={form.groupSize}
-					onChange={(e) => update("groupSize", Number(e.target.value))}
-					className="h-11 w-32"
-				/>
-			</Field>
-
-			{enumeratedDates.length > 0 && (
-				<div className="rounded-lg border border-line bg-paper p-3">
-					<div className="mb-2 text-sm font-semibold text-ink">
-						{form.type === "monthly"
-							? `Các buổi trong tháng (${enumeratedDates.length})`
-							: "Buổi đã chọn"}
-					</div>
-					<ul className="space-y-1.5 text-sm">
-						{enumeratedDates.map((d) => {
-							const taken = isDateTaken(d);
-							return (
-								<li key={d} className="flex items-center justify-between gap-2">
-									<span className="text-ink-soft">{dateLabel(d)}</span>
-									<StatusPill tone={taken ? "taken" : "free"}>
-										{taken ? "kín sân" : "còn trống"}
-									</StatusPill>
-								</li>
-							);
-						})}
-					</ul>
-				</div>
-			)}
-
-			<AmountCard
-				amount={amountPreview}
-				type={form.type}
-				sessions={enumeratedDates.length}
-				blockCount={form.blockCount}
-			/>
-
-			{error && (
-				<p className="rounded-lg bg-signal-red-soft px-3 py-2 text-sm font-medium text-signal-red">
-					{error}
-				</p>
-			)}
-
-			<Button type="submit" size="lg" disabled={pending} className="w-full">
-				Tiếp tục
-			</Button>
-			<p className="text-center text-xs text-ink-faint">
-				Bạn sẽ xem lại thông tin trước khi thanh toán.
-			</p>
-		</form>
+			</form>
+		</CheckoutShell>
 	);
 }
 
 /** Wizard progress: Thông tin → Xác nhận → Thanh toán → Hoàn tất. */
-const WIZARD_STEPS: { stage: "form" | "review" | "payment" | "done"; label: string }[] = [
+export const WIZARD_STEPS: { stage: "form" | "review" | "payment" | "done"; label: string }[] = [
 	{ stage: "form", label: "Thông tin" },
 	{ stage: "review", label: "Xác nhận" },
 	{ stage: "payment", label: "Thanh toán" },
 	{ stage: "done", label: "Hoàn tất" },
 ];
 
-function Stepper({ stage }: { stage: "form" | "review" | "payment" | "done" }) {
+export function Stepper({ stage }: { stage: "form" | "review" | "payment" | "done" }) {
 	const activeIndex = WIZARD_STEPS.findIndex((s) => s.stage === stage);
 	return (
 		<ol className="flex items-center gap-1.5" aria-label="Tiến trình đặt sân">
@@ -648,7 +677,6 @@ function ReviewBill({
 	groupSize,
 	dates,
 	isDateTaken,
-	amount,
 }: {
 	type: "adhoc" | "monthly";
 	startTime: string;
@@ -661,7 +689,6 @@ function ReviewBill({
 	groupSize: number;
 	dates: string[];
 	isDateTaken: (d: string) => boolean;
-	amount: number | null;
 }) {
 	const weekdaysLabel = WEEKDAY_CHIPS.filter((w) => weekdays.includes(w.value))
 		.map((w) => w.label)
@@ -711,13 +738,6 @@ function ReviewBill({
 					</ul>
 				</div>
 			)}
-
-			<div className="flex items-center justify-between rounded-xl border border-court-300 bg-court-50 px-4 py-3">
-				<span className="text-sm font-medium text-ink-soft">Tổng tiền</span>
-				<span className="font-mono text-2xl font-bold tabular-nums text-court-900">
-					{amount === null ? "—" : formatVnd(amount)}
-				</span>
-			</div>
 		</div>
 	);
 }
@@ -727,34 +747,6 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 		<div className="flex items-start justify-between gap-3">
 			<dt className="shrink-0 text-ink-faint">{label}</dt>
 			<dd className="text-right text-ink">{value}</dd>
-		</div>
-	);
-}
-
-function AmountCard({
-	amount,
-	type,
-	sessions,
-	blockCount,
-}: {
-	amount: number | null;
-	type: "adhoc" | "monthly";
-	sessions: number;
-	blockCount: number;
-}) {
-	return (
-		<div className="rounded-xl border border-court-200 bg-court-25 p-4">
-			<div className="flex items-center justify-between">
-				<span className="text-sm text-ink-soft">Tổng tiền</span>
-				<span className="font-mono text-xl font-bold tabular-nums text-court-900">
-					{amount === null ? "—" : formatVnd(amount)}
-				</span>
-			</div>
-			{amount !== null && type === "monthly" && (
-				<p className="mt-1 text-xs text-ink-faint">
-					{sessions} buổi × {blockCount / 2} giờ
-				</p>
-			)}
 		</div>
 	);
 }
