@@ -17,7 +17,10 @@ import { clearCheckout } from "./checkout-storage";
 export function CheckoutPay({ receipt }: { receipt: HoldResume }) {
 	const router = useRouter();
 	return (
-		<CheckoutShell summary={<ReceiptSummary receipt={receipt} />} total={formatVnd(receipt.amountVnd)}>
+		<CheckoutShell
+			summary={<ReceiptSummary receipt={receipt} />}
+			total={formatVnd(receipt.amountVnd)}
+		>
 			<div className="space-y-5">
 				<Stepper stage="payment" />
 				<PaymentStep

@@ -70,7 +70,10 @@ export default async function BookReferencePage({
 
 	// Expired hold (window elapsed / terminal) → recovery.
 	return (
-		<CheckoutShell summary={<ReceiptSummary receipt={receipt} />} total={formatVnd(receipt.amountVnd)}>
+		<CheckoutShell
+			summary={<ReceiptSummary receipt={receipt} />}
+			total={formatVnd(receipt.amountVnd)}
+		>
 			<div className="space-y-5">
 				<Stepper stage="payment" />
 				<CheckoutRecovery reference={receipt.reference} ownerZalo={receipt.ownerZalo} />
