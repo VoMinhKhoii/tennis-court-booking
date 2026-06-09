@@ -1,45 +1,63 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { createBooking } from "@/lib/actions/create-booking";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { StatusPill } from "@/components/ui/status-pill";
+import { type BookingReceipt, createHold, getHold } from "@/lib/actions/create-booking";
 import { MAX_BLOCK_COUNT } from "@/lib/booking/constants";
-import { enumerateSlotDates, ictToday } from "@/lib/booking/dates";
+import { enumerateSlotDatesMulti, ictToday } from "@/lib/booking/dates";
+import { formatVnd } from "@/lib/booking/format";
 import {
 	minutesToTime,
 	monthLabel,
 	monthStartOf,
 	nextMonthStart,
-	rangeStartIctMinutes,
+	rangeIctBlockStarts,
 	timeToMinutes,
 } from "@/lib/booking/grid";
 import { computeAmountVnd } from "@/lib/booking/pricing";
 import { type BookingInput, bookingInputSchema } from "@/lib/booking/schemas";
-import { useAvailability } from "@/lib/queries/availability";
+import { useAvailabilityAllCourts } from "@/lib/queries/availability";
 import { usePublicCourts, usePublicSettings } from "@/lib/queries/public";
-import type { CourtRow } from "@/lib/queries/types";
-import { BookingReceiptScreen } from "./booking-receipt";
+import { BookingDoneScreen, PaymentStep } from "./booking-receipt";
+import { clearCheckout, loadCheckout, saveCheckout } from "./checkout-storage";
 
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+// Chip order Mon→Sun (values stay 0=Sun..6=Sat to match Postgres dow).
+const WEEKDAY_CHIPS: { value: number; label: string }[] = [
+	{ value: 1, label: "T2" },
+	{ value: 2, label: "T3" },
+	{ value: 3, label: "T4" },
+	{ value: 4, label: "T5" },
+	{ value: 5, label: "T6" },
+	{ value: 6, label: "T7" },
+	{ value: 0, label: "CN" },
+];
 
-/** Format a VND integer using VN locale conventions (e.g. 200.000 ₫). */
-function formatVnd(amount: number): string {
-	return new Intl.NumberFormat("vi-VN", {
-		style: "currency",
-		currency: "VND",
-		maximumFractionDigits: 0,
-	}).format(amount);
-}
+/** Prefill from a grid selection or an owner deep-link. No court is chosen. */
+export type BookingInitial = Partial<{
+	type: "adhoc" | "monthly";
+	date: string;
+	month: string;
+	weekdays: number[];
+	startTime: string;
+	blockCount: number;
+	preferredCourtId: string;
+}>;
 
-/**
- * Build the list of 30-min start-time options within a court's window such that
- * a booking of `blockCount` 30-min blocks still ends on or before closing time.
- */
-function startTimeOptions(court: CourtRow, blockCount: number): string[] {
-	const open = timeToMinutes(court.open_time);
-	const close = timeToMinutes(court.close_time);
+/** Start-time options (within a [open, close) window) that still fit the duration. */
+function startTimeOptions(openMin: number, closeMin: number, blockCount: number): string[] {
 	const duration = Math.max(1, blockCount) * 30;
 	const out: string[] = [];
-	for (let m = open; m + duration <= close; m += 30) {
+	for (let m = openMin; m + duration <= closeMin; m += 30) {
 		out.push(minutesToTime(m));
 	}
 	return out;
@@ -47,18 +65,24 @@ function startTimeOptions(court: CourtRow, blockCount: number): string[] {
 
 type FormState = {
 	type: "adhoc" | "monthly";
-	courtId: string;
+	preferredCourtId: string; // "" = auto (balanced)
 	customerName: string;
 	zaloPhone: string;
 	groupSize: number;
 	startTime: string;
 	blockCount: number;
-	date: string; // adhoc
-	month: string; // monthly (first-of-month)
-	weekday: number; // monthly
+	date: string;
+	month: string;
+	weekdays: number[];
 };
 
-export function BookingForm() {
+export function BookingForm({
+	initial,
+	lockSlot = false,
+}: {
+	initial?: BookingInitial;
+	lockSlot?: boolean;
+}) {
 	const { data: courts } = usePublicCourts();
 	const { data: settings } = usePublicSettings();
 	const activeCourts = useMemo(() => (courts ?? []).filter((c) => c.is_active), [courts]);
@@ -66,296 +90,483 @@ export function BookingForm() {
 	const today = useMemo(() => ictToday(), []);
 	const currentMonth = useMemo(() => monthStartOf(today), [today]);
 
-	const [form, setForm] = useState<FormState>({
-		type: "adhoc",
-		courtId: "",
+	const [form, setForm] = useState<FormState>(() => ({
+		type: initial?.type ?? "adhoc",
+		preferredCourtId: initial?.preferredCourtId ?? "",
 		customerName: "",
 		zaloPhone: "",
 		groupSize: 1,
-		startTime: "",
-		blockCount: 2,
-		date: today,
-		month: currentMonth,
-		weekday: 1,
-	});
+		startTime: initial?.startTime ?? "",
+		blockCount: initial?.blockCount ?? 2,
+		date: initial?.date ?? today,
+		month: initial?.month ?? currentMonth,
+		weekdays: initial?.weekdays ?? [],
+	}));
+	const [stage, setStage] = useState<"form" | "review" | "payment" | "done">("form");
 	const [error, setError] = useState<string | null>(null);
-	const [receipt, setReceipt] = useState<Awaited<ReturnType<typeof createBooking>> | null>(null);
+	const [receipt, setReceipt] = useState<BookingReceipt | null>(null);
 	const [pending, startTransition] = useTransition();
 
-	const court = activeCourts.find((c) => c.id === form.courtId) ?? activeCourts[0] ?? null;
-	const effectiveCourtId = court?.id ?? "";
+	// Resume a live hold after a refresh / mobile tab eviction (spec §refresh-resume).
+	useEffect(() => {
+		const saved = loadCheckout();
+		if (!saved) return;
+		let active = true;
+		getHold(saved.reference).then((r) => {
+			if (!active) return;
+			if (r.ok) {
+				setReceipt(r.data);
+				setStage("payment");
+			} else {
+				clearCheckout();
+			}
+		});
+		return () => {
+			active = false;
+		};
+	}, []);
 
-	// Enumerated occurrence dates (mirror of the SQL fn) for preview + badges.
+	// Union operating window across all courts (court is auto-assigned later).
+	const { openMin, closeMin } = useMemo(() => {
+		let open = Number.POSITIVE_INFINITY;
+		let close = Number.NEGATIVE_INFINITY;
+		for (const c of activeCourts) {
+			open = Math.min(open, timeToMinutes(c.open_time));
+			close = Math.max(close, timeToMinutes(c.close_time));
+		}
+		return {
+			openMin: Number.isFinite(open) ? open : 0,
+			closeMin: Number.isFinite(close) ? close : 0,
+		};
+	}, [activeCourts]);
+
 	const enumeratedDates = useMemo<string[]>(() => {
 		try {
 			if (form.type === "adhoc") {
-				return enumerateSlotDates({ type: "adhoc", date: form.date }, today);
+				return form.date ? [form.date] : [];
 			}
-			return enumerateSlotDates(
-				{ type: "monthly", month: form.month, weekday: form.weekday },
-				today,
-			);
+			return enumerateSlotDatesMulti(form.month, form.weekdays, today);
 		} catch {
 			return [];
 		}
-	}, [form.type, form.date, form.month, form.weekday, today]);
+	}, [form.type, form.date, form.month, form.weekdays, today]);
 
-	// Amount preview via the shared pricing path (§8). Empty rate => no preview.
 	const rate = settings?.flat_hourly_rate_vnd ?? 0;
 	const amountPreview =
 		rate > 0 && enumeratedDates.length > 0
 			? computeAmountVnd(rate, form.blockCount, enumeratedDates.length)
 			: null;
 
-	// Availability for the relevant month, to compute per-occurrence free/taken
-	// badges. Adhoc uses the date's month; monthly uses the target month.
 	const badgeMonth = form.type === "adhoc" ? monthStartOf(form.date) : form.month;
-	const { data: availability } = useAvailability(effectiveCourtId, badgeMonth);
+	const { data: availability } = useAvailabilityAllCourts(badgeMonth);
 
-	const occupiedByDate = useMemo(() => {
-		const map = new Map<string, Set<number>>();
+	// date -> (court_id -> occupied block-start minutes).
+	const occByDateCourt = useMemo(() => {
+		const map = new Map<string, Map<string, Set<number>>>();
 		for (const row of availability ?? []) {
-			let set = map.get(row.slot_date);
+			let byCourt = map.get(row.slot_date);
+			if (!byCourt) {
+				byCourt = new Map<string, Set<number>>();
+				map.set(row.slot_date, byCourt);
+			}
+			let set = byCourt.get(row.court_id);
 			if (!set) {
 				set = new Set<number>();
-				map.set(row.slot_date, set);
+				byCourt.set(row.court_id, set);
 			}
-			set.add(rangeStartIctMinutes(row.time_range));
+			for (const min of rangeIctBlockStarts(row.time_range)) {
+				set.add(min);
+			}
 		}
 		return map;
 	}, [availability]);
 
-	/** Does the requested block span overlap an occupied block on this date? */
-	const isDateTaken = (date: string): boolean => {
-		if (!form.startTime) {
-			return false;
-		}
-		const occupied = occupiedByDate.get(date);
-		if (!occupied) {
-			return false;
-		}
+	// How many courts can host the FULL range on this date (open + no conflict).
+	const freeCourtsForRange = (date: string): number => {
+		if (!form.startTime) return activeCourts.length;
 		const start = timeToMinutes(form.startTime);
-		for (let i = 0; i < form.blockCount; i++) {
-			if (occupied.has(start + i * 30)) {
-				return true;
+		const end = start + form.blockCount * 30;
+		let count = 0;
+		for (const c of activeCourts) {
+			if (start < timeToMinutes(c.open_time) || end > timeToMinutes(c.close_time)) continue;
+			const occ = occByDateCourt.get(date)?.get(c.id);
+			let ok = true;
+			if (occ) {
+				for (let i = 0; i < form.blockCount; i++) {
+					if (occ.has(start + i * 30)) {
+						ok = false;
+						break;
+					}
+				}
 			}
+			if (ok) count += 1;
 		}
-		return false;
+		return count;
 	};
+	const isDateTaken = (date: string): boolean =>
+		Boolean(form.startTime) && freeCourtsForRange(date) === 0;
 
 	function update<K extends keyof FormState>(key: K, value: FormState[K]) {
 		setForm((f) => ({ ...f, [key]: value }));
 	}
 
+	function toggleWeekday(wd: number) {
+		setForm((f) => ({
+			...f,
+			weekdays: f.weekdays.includes(wd) ? f.weekdays.filter((d) => d !== wd) : [...f.weekdays, wd],
+		}));
+	}
+
 	function buildInput(): BookingInput {
 		const base = {
-			courtId: effectiveCourtId,
 			customerName: form.customerName,
 			zaloPhone: form.zaloPhone,
 			groupSize: form.groupSize,
 			startTime: form.startTime,
 			blockCount: form.blockCount,
+			preferredCourtId: form.preferredCourtId || undefined,
 		};
 		if (form.type === "adhoc") {
 			return { type: "adhoc", date: form.date, ...base };
 		}
-		return { type: "monthly", month: form.month, weekday: form.weekday, ...base };
+		return { type: "monthly", month: form.month, weekdays: form.weekdays, ...base };
 	}
 
-	function onSubmit(e: React.FormEvent) {
+	function onReview(e: React.FormEvent) {
 		e.preventDefault();
 		setError(null);
-		const input = buildInput();
-		// Client-side Zod is UX-only (§2); the server re-validates authoritatively.
-		const parsed = bookingInputSchema.safeParse(input);
+		const parsed = bookingInputSchema.safeParse(buildInput());
 		if (!parsed.success) {
-			setError(parsed.error.issues[0]?.message ?? "Please check the form.");
+			setError(parsed.error.issues[0]?.message ?? "Vui lòng kiểm tra lại thông tin.");
+			return;
+		}
+		setStage("review");
+	}
+
+	function onConfirm() {
+		setError(null);
+		const parsed = bookingInputSchema.safeParse(buildInput());
+		if (!parsed.success) {
+			setError(parsed.error.issues[0]?.message ?? "Vui lòng kiểm tra lại thông tin.");
+			setStage("form");
 			return;
 		}
 		startTransition(async () => {
-			const result = await createBooking(parsed.data);
+			const result = await createHold(parsed.data);
 			if (result.ok) {
-				setReceipt(result);
+				setReceipt(result.data);
+				saveCheckout({
+					reference: result.data.reference,
+					holdExpiresAt: result.data.holdExpiresAt,
+				});
+				setStage("payment");
 			} else {
 				setError(result.error);
+				setStage("form");
 			}
 		});
 	}
 
-	if (receipt?.ok) {
-		return <BookingReceiptScreen receipt={receipt.data} />;
+	if (stage === "payment" && receipt) {
+		return (
+			<div className="space-y-5">
+				<Stepper stage={stage} />
+				<PaymentStep
+					receipt={receipt}
+					onExpired={() => {
+						clearCheckout();
+						setReceipt(null);
+						setStage("form");
+						setError("Hết thời gian giữ chỗ. Vui lòng đặt lại.");
+					}}
+					onDone={() => {
+						clearCheckout();
+						setStage("done");
+					}}
+				/>
+			</div>
+		);
+	}
+
+	if (stage === "done" && receipt) {
+		return (
+			<div className="space-y-5">
+				<Stepper stage={stage} />
+				<BookingDoneScreen receipt={receipt} />
+			</div>
+		);
 	}
 
 	if (activeCourts.length === 0) {
-		return <p className="text-sm text-zinc-500">No courts are open for booking yet.</p>;
+		return <p className="text-sm text-ink-faint">Hiện chưa có sân nào mở đặt.</p>;
 	}
 
-	const times = court ? startTimeOptions(court, form.blockCount) : [];
+	const times = startTimeOptions(openMin, closeMin, form.blockCount);
+	const endTime =
+		form.startTime && form.blockCount
+			? minutesToTime(timeToMinutes(form.startTime) + form.blockCount * 30)
+			: null;
 
-	return (
-		<form onSubmit={onSubmit} className="space-y-5">
-			<Field label="Your name">
-				<input
-					type="text"
-					required
-					value={form.customerName}
-					onChange={(e) => update("customerName", e.target.value)}
-					className={inputClass}
+	const timeItems = times.map((t) => ({ value: t, label: t }));
+	const durationItems = Array.from({ length: MAX_BLOCK_COUNT }, (_, i) => ({
+		value: String(i + 1),
+		label: `${(i + 1) / 2} giờ`,
+	}));
+	const courtItems = [
+		{ value: "", label: "Tự động (cân bằng)" },
+		...activeCourts.map((c) => ({ value: c.id, label: c.name })),
+	];
+	const preferredCourtName = activeCourts.find((c) => c.id === form.preferredCourtId)?.name ?? null;
+
+	// ---- Review stage: read-only bill, then proceed to payment. -------------
+	if (stage === "review") {
+		return (
+			<div className="space-y-5">
+				<Stepper stage={stage} />
+				<ReviewBill
+					type={form.type}
+					startTime={form.startTime}
+					endTime={endTime}
+					blockCount={form.blockCount}
+					weekdays={form.weekdays}
+					preferredCourtName={preferredCourtName}
+					customerName={form.customerName}
+					zaloPhone={form.zaloPhone}
+					groupSize={form.groupSize}
+					dates={enumeratedDates}
+					isDateTaken={isDateTaken}
+					amount={amountPreview}
 				/>
-			</Field>
 
-			<Field label="Zalo phone">
-				<input
-					type="tel"
-					required
-					inputMode="tel"
-					value={form.zaloPhone}
-					onChange={(e) => update("zaloPhone", e.target.value)}
-					placeholder="0901234567"
-					className={inputClass}
-				/>
-			</Field>
+				{error && (
+					<p className="rounded-lg bg-signal-red-soft px-3 py-2 text-sm font-medium text-signal-red">
+						{error}
+					</p>
+				)}
 
-			<Field label="Court">
-				<select
-					value={effectiveCourtId}
-					onChange={(e) => update("courtId", e.target.value)}
-					className={inputClass}
-				>
-					{activeCourts.map((c) => (
-						<option key={c.id} value={c.id}>
-							{c.name} ({c.open_time.slice(0, 5)}–{c.close_time.slice(0, 5)})
-						</option>
-					))}
-				</select>
-			</Field>
-
-			<Field label="Booking type">
-				<div className="flex gap-2">
-					{(["adhoc", "monthly"] as const).map((t) => (
-						<button
-							key={t}
-							type="button"
-							onClick={() => update("type", t)}
-							className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
-								form.type === t
-									? "bg-emerald-600 text-white"
-									: "border border-zinc-300 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
-							}`}
-						>
-							{t === "adhoc" ? "One-off (ad-hoc)" : "Monthly"}
-						</button>
-					))}
+				<div className="flex gap-3">
+					<Button
+						type="button"
+						variant="outline"
+						size="lg"
+						className="flex-1"
+						disabled={pending}
+						onClick={() => setStage("form")}
+					>
+						Quay lại
+					</Button>
+					<Button
+						type="button"
+						size="lg"
+						className="flex-[2]"
+						disabled={pending}
+						onClick={onConfirm}
+					>
+						{pending ? "Đang xử lý…" : "Tiến hành thanh toán"}
+					</Button>
 				</div>
-			</Field>
+				<p className="text-center text-xs text-ink-faint">
+					Bước tiếp theo hiển thị mã QR chuyển khoản. Chủ sân xác nhận sau khi nhận tiền.
+				</p>
+			</div>
+		);
+	}
+
+	// ---- Form stage --------------------------------------------------------
+	return (
+		<form onSubmit={onReview} className="space-y-5">
+			<Stepper stage="form" />
+			{lockSlot ? (
+				<LockedTimeSummary
+					type={form.type}
+					startTime={form.startTime}
+					endTime={endTime}
+					blockCount={form.blockCount}
+				/>
+			) : (
+				<div className="space-y-1.5">
+					<Label>Loại đặt sân</Label>
+					<SegToggle
+						options={[
+							{ value: "adhoc", label: "Một buổi" },
+							{ value: "monthly", label: "Hàng tháng" },
+						]}
+						value={form.type}
+						onChange={(v) => update("type", v as FormState["type"])}
+					/>
+				</div>
+			)}
 
 			{form.type === "adhoc" ? (
-				<Field label="Date">
-					<input
-						type="date"
-						required
-						min={today}
-						value={form.date}
-						onChange={(e) => update("date", e.target.value)}
-						className={inputClass}
-					/>
-				</Field>
+				!lockSlot && (
+					<Field id="date" label="Ngày">
+						<Input
+							id="date"
+							type="date"
+							required
+							min={today}
+							value={form.date}
+							onChange={(e) => update("date", e.target.value)}
+							className="h-11"
+						/>
+					</Field>
+				)
 			) : (
 				<>
-					<Field label="Target month">
-						<div className="flex gap-2">
-							{[currentMonth, nextMonthStart(currentMonth)].map((m) => (
-								<button
-									key={m}
-									type="button"
-									onClick={() => update("month", m)}
-									className={`flex-1 rounded-md px-3 py-2 text-sm ${
-										form.month === m
-											? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-											: "border border-zinc-300 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
-									}`}
-								>
-									{monthLabel(m)}
-								</button>
-							))}
+					<div className="space-y-1.5">
+						<Label>Tháng áp dụng</Label>
+						<SegToggle
+							options={[currentMonth, nextMonthStart(currentMonth)].map((m) => ({
+								value: m,
+								label: monthLabel(m),
+							}))}
+							value={form.month}
+							onChange={(v) => update("month", v)}
+						/>
+					</div>
+					<div className="space-y-1.5">
+						<Label>Các thứ trong tuần</Label>
+						<div className="flex flex-wrap gap-1.5">
+							{WEEKDAY_CHIPS.map((w) => {
+								const on = form.weekdays.includes(w.value);
+								return (
+									<button
+										key={w.value}
+										type="button"
+										onClick={() => toggleWeekday(w.value)}
+										aria-pressed={on}
+										className={`h-10 w-10 cursor-pointer rounded-md text-sm font-semibold transition-colors ${
+											on
+												? "bg-court-900 text-white shadow-court"
+												: "border border-line-strong bg-paper-raised text-ink-soft hover:border-court-500"
+										}`}
+									>
+										{w.label}
+									</button>
+								);
+							})}
 						</div>
-					</Field>
-					<Field label="Weekday">
-						<select
-							value={form.weekday}
-							onChange={(e) => update("weekday", Number(e.target.value))}
-							className={inputClass}
-						>
-							{WEEKDAYS.map((w, i) => (
-								<option key={w} value={i}>
-									{w}
-								</option>
-							))}
-						</select>
-					</Field>
+						<p className="text-xs text-ink-faint">
+							Chọn một hoặc nhiều thứ — sân giữ vào các thứ đó hằng tuần.
+						</p>
+					</div>
 				</>
 			)}
 
-			<Field label="Start time">
-				<select
-					required
-					value={form.startTime}
-					onChange={(e) => update("startTime", e.target.value)}
-					className={inputClass}
+			{!lockSlot && (
+				<div className="grid grid-cols-2 gap-3">
+					<Field id="start" label="Giờ bắt đầu">
+						<Select
+							items={timeItems}
+							value={form.startTime}
+							onValueChange={(v) => update("startTime", String(v))}
+						>
+							<SelectTrigger id="start" className="h-11 w-full">
+								<SelectValue placeholder="Chọn giờ" />
+							</SelectTrigger>
+							<SelectContent>
+								{times.map((t) => (
+									<SelectItem key={t} value={t}>
+										{t}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Field>
+					<Field id="duration" label="Thời lượng">
+						<Select
+							items={durationItems}
+							value={String(form.blockCount)}
+							onValueChange={(v) => update("blockCount", Number(v))}
+						>
+							<SelectTrigger id="duration" className="h-11 w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{Array.from({ length: MAX_BLOCK_COUNT }, (_, i) => i + 1).map((n) => (
+									<SelectItem key={n} value={String(n)}>
+										{n / 2} giờ
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Field>
+				</div>
+			)}
+
+			<Field id="court" label="Sân ưu tiên">
+				<Select
+					items={courtItems}
+					value={form.preferredCourtId}
+					onValueChange={(v) => update("preferredCourtId", String(v))}
 				>
-					<option value="">Select a time</option>
-					{times.map((t) => (
-						<option key={t} value={t}>
-							{t}
-						</option>
-					))}
-				</select>
+					<SelectTrigger id="court" className="h-11 w-full">
+						<SelectValue placeholder="Tự động (cân bằng)" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="">Tự động (cân bằng)</SelectItem>
+						{activeCourts.map((c) => (
+							<SelectItem key={c.id} value={c.id}>
+								{c.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</Field>
 
-			<Field label="Duration">
-				<select
-					value={form.blockCount}
-					onChange={(e) => update("blockCount", Number(e.target.value))}
-					className={inputClass}
-				>
-					{Array.from({ length: MAX_BLOCK_COUNT }, (_, i) => i + 1).map((n) => (
-						<option key={n} value={n}>
-							{n * 30} min ({n / 2} h)
-						</option>
-					))}
-				</select>
-			</Field>
+			<div className="grid gap-4 sm:grid-cols-2">
+				<Field id="name" label="Họ và tên">
+					<Input
+						id="name"
+						type="text"
+						required
+						value={form.customerName}
+						onChange={(e) => update("customerName", e.target.value)}
+						placeholder="Nguyễn Văn A"
+						className="h-11"
+					/>
+				</Field>
+				<Field id="zalo" label="Số Zalo">
+					<Input
+						id="zalo"
+						type="tel"
+						required
+						inputMode="tel"
+						value={form.zaloPhone}
+						onChange={(e) => update("zaloPhone", e.target.value)}
+						placeholder="0901234567"
+						className="h-11"
+					/>
+				</Field>
+			</div>
 
-			<Field label="Group size">
-				<input
+			<Field id="group" label="Số người">
+				<Input
+					id="group"
 					type="number"
 					min={1}
 					value={form.groupSize}
 					onChange={(e) => update("groupSize", Number(e.target.value))}
-					className={inputClass}
+					className="h-11 w-32"
 				/>
 			</Field>
 
 			{enumeratedDates.length > 0 && (
-				<div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-					<div className="mb-2 text-sm font-medium">
-						{form.type === "monthly" ? "Sessions this month" : "Session"}
+				<div className="rounded-lg border border-line bg-paper p-3">
+					<div className="mb-2 text-sm font-semibold text-ink">
+						{form.type === "monthly"
+							? `Các buổi trong tháng (${enumeratedDates.length})`
+							: "Buổi đã chọn"}
 					</div>
-					<ul className="space-y-1 text-sm">
+					<ul className="space-y-1.5 text-sm">
 						{enumeratedDates.map((d) => {
 							const taken = isDateTaken(d);
 							return (
-								<li key={d} className="flex items-center justify-between">
-									<span>{dateLabel(d)}</span>
-									<span
-										className={
-											taken
-												? "rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 dark:bg-red-950 dark:text-red-300"
-												: "rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-										}
-									>
-										{taken ? "taken" : "free"}
-									</span>
+								<li key={d} className="flex items-center justify-between gap-2">
+									<span className="text-ink-soft">{dateLabel(d)}</span>
+									<StatusPill tone={taken ? "taken" : "free"}>
+										{taken ? "kín sân" : "còn trống"}
+									</StatusPill>
 								</li>
 							);
 						})}
@@ -363,55 +574,259 @@ export function BookingForm() {
 				</div>
 			)}
 
-			<div className="rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900">
-				<div className="flex items-center justify-between">
-					<span className="text-zinc-600 dark:text-zinc-400">Amount</span>
-					<span className="text-lg font-semibold tabular-nums">
-						{amountPreview === null ? "—" : formatVnd(amountPreview)}
-					</span>
-				</div>
-				{amountPreview !== null && form.type === "monthly" && (
-					<p className="mt-1 text-xs text-zinc-500">
-						{enumeratedDates.length} session{enumeratedDates.length === 1 ? "" : "s"} ×{" "}
-						{form.blockCount / 2} h
-					</p>
-				)}
-			</div>
+			<AmountCard
+				amount={amountPreview}
+				type={form.type}
+				sessions={enumeratedDates.length}
+				blockCount={form.blockCount}
+			/>
 
 			{error && (
-				<p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+				<p className="rounded-lg bg-signal-red-soft px-3 py-2 text-sm font-medium text-signal-red">
 					{error}
 				</p>
 			)}
 
-			<button
-				type="submit"
-				disabled={pending}
-				className="w-full rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
-			>
-				{pending ? "Submitting…" : "Request booking"}
-			</button>
+			<Button type="submit" size="lg" disabled={pending} className="w-full">
+				Tiếp tục
+			</Button>
+			<p className="text-center text-xs text-ink-faint">
+				Bạn sẽ xem lại thông tin trước khi thanh toán.
+			</p>
 		</form>
 	);
 }
 
-const inputClass =
-	"w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950";
+/** Wizard progress: Thông tin → Xác nhận → Thanh toán → Hoàn tất. */
+const WIZARD_STEPS: { stage: "form" | "review" | "payment" | "done"; label: string }[] = [
+	{ stage: "form", label: "Thông tin" },
+	{ stage: "review", label: "Xác nhận" },
+	{ stage: "payment", label: "Thanh toán" },
+	{ stage: "done", label: "Hoàn tất" },
+];
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Stepper({ stage }: { stage: "form" | "review" | "payment" | "done" }) {
+	const activeIndex = WIZARD_STEPS.findIndex((s) => s.stage === stage);
 	return (
-		// The control is passed as children and rendered inside this label, so the
-		// label is correctly associated; Biome can't see through the component boundary.
-		// biome-ignore lint/a11y/noLabelWithoutControl: control is the children, nested in the label
-		<label className="block space-y-1">
-			<span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{label}</span>
+		<ol className="flex items-center gap-1.5" aria-label="Tiến trình đặt sân">
+			{WIZARD_STEPS.map((step, i) => {
+				const done = i < activeIndex;
+				const active = i === activeIndex;
+				return (
+					<li key={step.stage} className="flex flex-1 items-center gap-1.5">
+						<div className="flex min-w-0 flex-1 flex-col gap-1">
+							<span
+								className={`h-1 rounded-full transition-colors ${
+									done || active ? "bg-court-600" : "bg-line"
+								}`}
+							/>
+							<span
+								className={`truncate text-[11px] font-semibold ${
+									active ? "text-court-800" : done ? "text-ink-soft" : "text-ink-faint"
+								}`}
+								aria-current={active ? "step" : undefined}
+							>
+								{step.label}
+							</span>
+						</div>
+					</li>
+				);
+			})}
+		</ol>
+	);
+}
+
+function ReviewBill({
+	type,
+	startTime,
+	endTime,
+	blockCount,
+	weekdays,
+	preferredCourtName,
+	customerName,
+	zaloPhone,
+	groupSize,
+	dates,
+	isDateTaken,
+	amount,
+}: {
+	type: "adhoc" | "monthly";
+	startTime: string;
+	endTime: string | null;
+	blockCount: number;
+	weekdays: number[];
+	preferredCourtName: string | null;
+	customerName: string;
+	zaloPhone: string;
+	groupSize: number;
+	dates: string[];
+	isDateTaken: (d: string) => boolean;
+	amount: number | null;
+}) {
+	const weekdaysLabel = WEEKDAY_CHIPS.filter((w) => weekdays.includes(w.value))
+		.map((w) => w.label)
+		.join(", ");
+	return (
+		<div className="space-y-4">
+			<div>
+				<h3 className="font-display text-lg font-bold text-ink">Xác nhận đặt sân</h3>
+				<p className="text-sm text-ink-soft">Kiểm tra lại thông tin trước khi thanh toán.</p>
+			</div>
+
+			<div className="rounded-xl border border-court-200 bg-court-25 p-4">
+				<dl className="space-y-2 text-sm">
+					<Row label="Loại" value={type === "monthly" ? "Hàng tháng" : "Một buổi"} />
+					<Row
+						label="Khung giờ"
+						value={
+							<span className="font-mono font-bold tabular-nums text-ink">
+								{startTime}
+								{endTime ? `–${endTime}` : ""} ({blockCount / 2} giờ)
+							</span>
+						}
+					/>
+					{type === "monthly" && <Row label="Các thứ" value={weekdaysLabel || "—"} />}
+					<Row label="Sân" value={preferredCourtName ?? "Tự động xếp sân"} />
+					<Row label="Người đặt" value={`${customerName} · ${zaloPhone} · ${groupSize} người`} />
+				</dl>
+			</div>
+
+			{dates.length > 0 && (
+				<div className="rounded-lg border border-line bg-paper p-3">
+					<div className="mb-2 text-sm font-semibold text-ink">
+						{type === "monthly" ? `Các buổi (${dates.length})` : "Buổi đã chọn"}
+					</div>
+					<ul className="space-y-1.5 text-sm">
+						{dates.map((d) => {
+							const taken = isDateTaken(d);
+							return (
+								<li key={d} className="flex items-center justify-between gap-2">
+									<span className="text-ink-soft">{dateLabel(d)}</span>
+									<StatusPill tone={taken ? "taken" : "free"}>
+										{taken ? "kín sân" : "còn trống"}
+									</StatusPill>
+								</li>
+							);
+						})}
+					</ul>
+				</div>
+			)}
+
+			<div className="flex items-center justify-between rounded-xl border border-court-300 bg-court-50 px-4 py-3">
+				<span className="text-sm font-medium text-ink-soft">Tổng tiền</span>
+				<span className="font-mono text-2xl font-bold tabular-nums text-court-900">
+					{amount === null ? "—" : formatVnd(amount)}
+				</span>
+			</div>
+		</div>
+	);
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+	return (
+		<div className="flex items-start justify-between gap-3">
+			<dt className="shrink-0 text-ink-faint">{label}</dt>
+			<dd className="text-right text-ink">{value}</dd>
+		</div>
+	);
+}
+
+function AmountCard({
+	amount,
+	type,
+	sessions,
+	blockCount,
+}: {
+	amount: number | null;
+	type: "adhoc" | "monthly";
+	sessions: number;
+	blockCount: number;
+}) {
+	return (
+		<div className="rounded-xl border border-court-200 bg-court-25 p-4">
+			<div className="flex items-center justify-between">
+				<span className="text-sm text-ink-soft">Tổng tiền</span>
+				<span className="font-mono text-xl font-bold tabular-nums text-court-900">
+					{amount === null ? "—" : formatVnd(amount)}
+				</span>
+			</div>
+			{amount !== null && type === "monthly" && (
+				<p className="mt-1 text-xs text-ink-faint">
+					{sessions} buổi × {blockCount / 2} giờ
+				</p>
+			)}
+		</div>
+	);
+}
+
+function LockedTimeSummary({
+	type,
+	startTime,
+	endTime,
+	blockCount,
+}: {
+	type: "adhoc" | "monthly";
+	startTime: string;
+	endTime: string | null;
+	blockCount: number;
+}) {
+	return (
+		<div className="rounded-xl border border-court-200 bg-court-25 p-4">
+			<div className="flex items-center justify-between">
+				<span className="font-display text-sm font-bold text-court-900">Khung giờ đã chọn</span>
+				<StatusPill tone={type === "monthly" ? "confirmed" : "free"}>
+					{type === "monthly" ? "Hàng tháng" : "Một buổi"}
+				</StatusPill>
+			</div>
+			<p className="mt-2 font-mono text-lg font-bold tabular-nums text-ink">
+				{startTime}
+				{endTime ? `–${endTime}` : ""}{" "}
+				<span className="text-sm font-normal text-ink-faint">({blockCount / 2} giờ)</span>
+			</p>
+		</div>
+	);
+}
+
+function SegToggle<T extends string>({
+	options,
+	value,
+	onChange,
+}: {
+	options: { value: T; label: string }[];
+	value: T;
+	onChange: (v: T) => void;
+}) {
+	return (
+		<div className="flex gap-1 rounded-lg border border-line bg-paper p-1">
+			{options.map((o) => (
+				<button
+					key={o.value}
+					type="button"
+					onClick={() => onChange(o.value)}
+					className={`flex-1 cursor-pointer rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+						value === o.value
+							? "bg-court-900 text-white shadow-court"
+							: "text-ink-soft hover:bg-court-50"
+					}`}
+				>
+					{o.label}
+				</button>
+			))}
+		</div>
+	);
+}
+
+function Field({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+	return (
+		<div className="space-y-1.5">
+			<Label htmlFor={id}>{label}</Label>
 			{children}
-		</label>
+		</div>
 	);
 }
 
 function dateLabel(date: string): string {
-	return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
+	return new Date(`${date}T00:00:00Z`).toLocaleDateString("vi-VN", {
 		weekday: "short",
 		day: "numeric",
 		month: "short",
