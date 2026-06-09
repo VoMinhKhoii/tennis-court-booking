@@ -1,12 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { bookingInputSchema, courtInputSchema, settingsInputSchema } from "./schemas";
+import {
+	bookingInputSchema,
+	courtInputSchema,
+	manualBookingInputSchema,
+	settingsInputSchema,
+} from "./schemas";
 
 const COURT_ID = "550e8400-e29b-41d4-a716-446655440000";
 
 const baseAdhoc = {
 	type: "adhoc" as const,
 	date: "2030-04-10",
-	courtId: COURT_ID,
 	customerName: "Anh Khoa",
 	zaloPhone: "0912345678",
 	groupSize: 2,
@@ -17,8 +21,7 @@ const baseAdhoc = {
 const baseMonthly = {
 	type: "monthly" as const,
 	month: "2030-05-01",
-	weekday: 3,
-	courtId: COURT_ID,
+	weekdays: [3],
 	customerName: "Chi Lan",
 	zaloPhone: "+84912345678",
 	groupSize: 1,
@@ -30,8 +33,18 @@ describe("bookingInputSchema — accepts valid input", () => {
 	test("valid ad-hoc", () => {
 		expect(bookingInputSchema.safeParse(baseAdhoc).success).toBe(true);
 	});
-	test("valid monthly", () => {
+	test("valid monthly (single weekday)", () => {
 		expect(bookingInputSchema.safeParse(baseMonthly).success).toBe(true);
+	});
+	test("valid monthly (multiple weekdays)", () => {
+		expect(bookingInputSchema.safeParse({ ...baseMonthly, weekdays: [1, 3, 5] }).success).toBe(
+			true,
+		);
+	});
+	test("optional preferredCourtId accepted", () => {
+		expect(bookingInputSchema.safeParse({ ...baseAdhoc, preferredCourtId: COURT_ID }).success).toBe(
+			true,
+		);
 	});
 });
 
@@ -61,12 +74,18 @@ describe("bookingInputSchema — rejects bad input", () => {
 		expect(bookingInputSchema.safeParse({ ...baseAdhoc, zaloPhone: "abc" }).success).toBe(false);
 	});
 
-	test("invalid court id (not uuid)", () => {
-		expect(bookingInputSchema.safeParse({ ...baseAdhoc, courtId: "nope" }).success).toBe(false);
+	test("invalid preferredCourtId (not uuid)", () => {
+		expect(bookingInputSchema.safeParse({ ...baseAdhoc, preferredCourtId: "nope" }).success).toBe(
+			false,
+		);
 	});
 
 	test("monthly weekday out of range", () => {
-		expect(bookingInputSchema.safeParse({ ...baseMonthly, weekday: 7 }).success).toBe(false);
+		expect(bookingInputSchema.safeParse({ ...baseMonthly, weekdays: [7] }).success).toBe(false);
+	});
+
+	test("monthly empty weekdays rejected", () => {
+		expect(bookingInputSchema.safeParse({ ...baseMonthly, weekdays: [] }).success).toBe(false);
 	});
 
 	test("adhoc missing date field is rejected", () => {
@@ -130,6 +149,30 @@ describe("courtInputSchema", () => {
 	});
 });
 
+describe("manualBookingInputSchema", () => {
+	test("owner adhoc requires explicit courtId", () => {
+		expect(manualBookingInputSchema.safeParse({ ...baseAdhoc, courtId: COURT_ID }).success).toBe(
+			true,
+		);
+		expect(manualBookingInputSchema.safeParse(baseAdhoc).success).toBe(false);
+	});
+	test("owner monthly uses a single weekday + courtId", () => {
+		expect(
+			manualBookingInputSchema.safeParse({
+				type: "monthly",
+				month: "2030-05-01",
+				weekday: 3,
+				courtId: COURT_ID,
+				customerName: "Chi Lan",
+				zaloPhone: "0912345678",
+				groupSize: 1,
+				startTime: "14:30",
+				blockCount: 3,
+			}).success,
+		).toBe(true);
+	});
+});
+
 describe("settingsInputSchema", () => {
 	test("positive integer rate", () => {
 		expect(settingsInputSchema.safeParse({ flatHourlyRateVnd: 200_000 }).success).toBe(true);
@@ -139,5 +182,15 @@ describe("settingsInputSchema", () => {
 	});
 	test("rejects non-integer", () => {
 		expect(settingsInputSchema.safeParse({ flatHourlyRateVnd: 1.5 }).success).toBe(false);
+	});
+	test("accepts optional bank fields", () => {
+		expect(
+			settingsInputSchema.safeParse({
+				flatHourlyRateVnd: 200_000,
+				bankBin: "970415",
+				bankAccountNumber: "0123456789",
+				bankAccountName: "NGUYEN VAN A",
+			}).success,
+		).toBe(true);
 	});
 });

@@ -107,3 +107,24 @@ export function enumerateSlotDates(
 	}
 	return dates;
 }
+
+/**
+ * Monthly enumeration across SEVERAL weekdays in one booking (e.g. T2/T4/T6) —
+ * the union of per-weekday `enumerateSlotDates`, deduped and ascending. Mirrors
+ * the server, where create_pending_booking unions enumerate_slot_dates over the
+ * p_weekdays array. Preview-only; the DB remains the source of truth.
+ */
+export function enumerateSlotDatesMulti(
+	month: string,
+	weekdays: number[],
+	today: string,
+): string[] {
+	const set = new Set<string>();
+	for (const weekday of weekdays) {
+		for (const d of enumerateSlotDates({ type: "monthly", month, weekday }, today)) {
+			set.add(d);
+		}
+	}
+	// YYYY-MM-DD sorts correctly as plain strings.
+	return Array.from(set).sort();
+}

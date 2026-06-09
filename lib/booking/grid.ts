@@ -54,6 +54,39 @@ export function rangeStartIctMinutes(timeRange: string): number {
 	return (((utcMinutes + ICT_OFFSET_MINUTES) % 1440) + 1440) % 1440;
 }
 
+/**
+ * Expand an occupied occurrence's tstzrange into every 30-min ICT start-minute
+ * it covers. The public_availability view returns one row per occurrence (which
+ * may span multiple blocks), so marking only the lower bound would leave the
+ * interior blocks looking free — this returns the full span.
+ */
+export function rangeIctBlockStarts(timeRange: string): number[] {
+	const inner = timeRange.replace(/^[[(]/, "").replace(/[\])]$/, "");
+	const [lowerRaw, upperRaw] = inner.split(",");
+	const toInstant = (raw: string | undefined): Date => {
+		const s = raw?.trim().replace(/^["']|["']$/g, "");
+		if (!s) {
+			throw new Error(`unparseable time_range bound: ${timeRange}`);
+		}
+		const iso = s.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
+		const instant = new Date(iso);
+		if (Number.isNaN(instant.getTime())) {
+			throw new Error(`unparseable time_range bound: ${s}`);
+		}
+		return instant;
+	};
+	const lower = toInstant(lowerRaw);
+	const upper = toInstant(upperRaw);
+	const startUtcMin = lower.getUTCHours() * 60 + lower.getUTCMinutes();
+	const startIct = (((startUtcMin + ICT_OFFSET_MINUTES) % 1440) + 1440) % 1440;
+	const durationMin = Math.round((upper.getTime() - lower.getTime()) / 60000);
+	const out: number[] = [];
+	for (let m = 0; m < durationMin; m += BLOCK_MINUTES) {
+		out.push(startIct + m);
+	}
+	return out;
+}
+
 export type GridBlock = {
 	/** "HH:MM" ICT wall-clock start of the 30-min block. */
 	startTime: string;
@@ -97,6 +130,28 @@ export function datesInMonth(monthStart: string): string[] {
 		out.push(`${monthStart.slice(0, 7)}-${String(d).padStart(2, "0")}`);
 	}
 	return out;
+}
+
+/** Add `n` days (may be negative) to a YYYY-MM-DD ICT date, returning YYYY-MM-DD. */
+export function addDays(isoDate: string, n: number): string {
+	const [y, m, d] = isoDate.split("-").map(Number);
+	const next = new Date(Date.UTC(y, m - 1, d + n));
+	return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(
+		next.getUTCDate(),
+	).padStart(2, "0")}`;
+}
+
+/** Monday (ICT) of the week containing the given date, as YYYY-MM-DD. */
+export function weekStartOf(isoDate: string): string {
+	const [y, m, d] = isoDate.split("-").map(Number);
+	const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
+	const offset = (dow + 6) % 7; // days since Monday
+	return addDays(isoDate, -offset);
+}
+
+/** The 7 ICT dates (Mon→Sun) of the week starting at `weekStart`. */
+export function datesInWeek(weekStart: string): string[] {
+	return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 }
 
 /** First-of-month YYYY-MM-DD for the month containing the given ICT date. */
