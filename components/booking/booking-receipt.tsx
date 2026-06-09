@@ -108,6 +108,7 @@ export function PaymentStep({
 				<p className="text-sm text-ink-soft">
 					Giữ chỗ trong{" "}
 					<span
+						suppressHydrationWarning
 						className={`font-mono text-lg font-bold tabular-nums ${
 							urgent ? "text-signal-red" : "text-court-900"
 						}`}
