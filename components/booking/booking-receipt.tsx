@@ -9,6 +9,7 @@ import { type BookingReceipt, finalizeBooking } from "@/lib/actions/create-booki
 import { formatVnd } from "@/lib/booking/format";
 import { safeZaloHref } from "@/lib/booking/zalo";
 import { createClient } from "@/lib/supabase/client";
+import { OrderSummary } from "./checkout-shell";
 
 /** Resolve the displayable QR src: dynamic VietQR first, else the static upload. */
 function useQrSrc(receipt: BookingReceipt): string | null {
@@ -214,19 +215,32 @@ export function PaymentStep({
 
 /**
  * Step 4 — Hoàn tất (spec §"Customer wizard" step 4). The hold is now a durable
- * pending booking awaiting owner confirmation.
+ * pending booking awaiting owner confirmation; `confirmed` flips the copy once the
+ * owner has approved the transfer.
  */
-export function BookingDoneScreen({ receipt }: { receipt: BookingReceipt }) {
+export function BookingDoneScreen({
+	receipt,
+	confirmed = false,
+}: {
+	receipt: BookingReceipt;
+	confirmed?: boolean;
+}) {
 	return (
 		<div className="space-y-5">
 			<div className="flex items-center justify-between">
 				<div>
-					<h2 className="font-display text-xl font-bold text-ink">Đang chờ chủ sân xác nhận</h2>
+					<h2 className="font-display text-xl font-bold text-ink">
+						{confirmed ? "Đã xác nhận đặt sân" : "Đang chờ chủ sân xác nhận"}
+					</h2>
 					<p className="text-sm text-ink-soft">
-						Chủ sân sẽ kiểm tra chuyển khoản và xác nhận giữ sân cho bạn.
+						{confirmed
+							? "Chủ sân đã xác nhận. Hẹn gặp bạn trên sân!"
+							: "Chủ sân sẽ kiểm tra chuyển khoản và xác nhận giữ sân cho bạn."}
 					</p>
 				</div>
-				<StatusPill tone="pending">Chờ xác nhận</StatusPill>
+				<StatusPill tone={confirmed ? "confirmed" : "pending"}>
+					{confirmed ? "Đã xác nhận" : "Chờ xác nhận"}
+				</StatusPill>
 			</div>
 
 			<AmountHero receipt={receipt} />
@@ -246,6 +260,70 @@ export function BookingDoneScreen({ receipt }: { receipt: BookingReceipt }) {
 				className={`${buttonVariants({ variant: "outline", size: "lg" })} w-full`}
 			>
 				Về lịch trống
+			</Link>
+		</div>
+	);
+}
+
+/** The checkout sidebar summary for a locked order (court + sessions + reference). */
+export function ReceiptSummary({ receipt }: { receipt: BookingReceipt }) {
+	const rows: { label: string; value: React.ReactNode }[] = [
+		{ label: "Sân", value: receipt.courtName || "—" },
+	];
+	if (receipt.occurrences > 1) {
+		rows.push({ label: "Số buổi", value: String(receipt.occurrences) });
+	}
+	rows.push({
+		label: "Nội dung CK",
+		value: <span className="font-mono tabular-nums">{receipt.reference}</span>,
+	});
+	return <OrderSummary rows={rows} amount={formatVnd(receipt.amountVnd)} />;
+}
+
+/**
+ * Recovery screen for a hold whose pay window elapsed (or a terminal booking).
+ * Shown on /book/[reference] when the state is expired. Reassures a customer who
+ * may have already paid and routes them to Zalo, plus a one-tap re-book.
+ */
+export function CheckoutRecovery({
+	reference,
+	ownerZalo,
+}: {
+	reference: string;
+	ownerZalo: string | null;
+}) {
+	const zalo = safeZaloHref(ownerZalo);
+	return (
+		<div className="space-y-5">
+			<div className="flex items-center justify-between">
+				<div>
+					<h2 className="font-display text-xl font-bold text-ink">Hết thời gian giữ chỗ</h2>
+					<p className="text-sm text-ink-soft">
+						Khung giờ đã được mở lại. Bạn có thể đặt lại — không mất phí.
+					</p>
+				</div>
+				<StatusPill tone="taken">Hết giữ chỗ</StatusPill>
+			</div>
+
+			<div className="rounded-xl border border-signal-amber-soft bg-signal-amber-soft p-4 text-sm text-signal-amber">
+				<p>
+					Nếu bạn <strong>đã chuyển khoản</strong>, gửi ảnh kèm mã{" "}
+					<strong className="font-mono">{reference}</strong> cho chủ sân qua Zalo để được hỗ trợ.
+				</p>
+			</div>
+
+			{zalo && (
+				<a
+					href={zalo}
+					target="_blank"
+					rel="noopener noreferrer"
+					className={`${buttonVariants({ variant: "outline", size: "lg" })} w-full`}
+				>
+					<MessageCircle className="size-4" /> Gửi ảnh qua Zalo
+				</a>
+			)}
+			<Link href="/book" className={`${buttonVariants({ size: "lg" })} w-full`}>
+				Đặt lại
 			</Link>
 		</div>
 	);
