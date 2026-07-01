@@ -1,13 +1,14 @@
 import { CourtManager } from "@/components/dashboard/court-manager";
+import { PageHeader } from "@/components/dashboard/page-header";
 
 export default function CourtsPage() {
 	return (
-		<section>
-			<h2 className="mb-1 text-lg font-semibold">Courts</h2>
-			<p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-				Add or edit courts. Hours are 30-min aligned; toggle active to hide a court from booking.
-			</p>
+		<div>
+			<PageHeader
+				title="Sân"
+				subtitle="Thêm hoặc sửa sân. Giờ chia theo mốc 30 phút; tắt trạng thái đang mở để ẩn sân khỏi việc đặt."
+			/>
 			<CourtManager />
-		</section>
+		</div>
 	);
 }

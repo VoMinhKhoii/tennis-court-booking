@@ -14,14 +14,14 @@ export function formatAge(createdAt: string, now: Date = new Date()): string {
 	const ms = now.getTime() - new Date(createdAt).getTime();
 	const mins = Math.max(0, Math.floor(ms / 60000));
 	if (mins < 60) {
-		return `${mins}m`;
+		return `${mins} phút`;
 	}
 	const hours = Math.floor(mins / 60);
 	if (hours < 24) {
-		return `${hours}h`;
+		return `${hours} giờ`;
 	}
 	const days = Math.floor(hours / 24);
-	return `${days}d`;
+	return `${days} ngày`;
 }
 
 /** Render an ISO timestamp in ICT (UTC+7) as a readable date-time. */

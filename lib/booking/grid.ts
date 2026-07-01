@@ -166,10 +166,10 @@ export function nextMonthStart(monthStart: string): string {
 	return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-01`;
 }
 
-/** Month label like "June 2026" for display. */
+/** Month label like "tháng 6, 2026" for display. */
 export function monthLabel(monthStart: string): string {
 	const [y, m] = monthStart.split("-").map(Number);
-	return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", {
+	return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("vi-VN", {
 		month: "long",
 		year: "numeric",
 		timeZone: "UTC",

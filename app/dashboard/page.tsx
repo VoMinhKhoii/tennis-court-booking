@@ -1,24 +1,22 @@
-import { HoldsPanel } from "@/components/dashboard/holds-panel";
-import { PendingQueue } from "@/components/dashboard/pending-queue";
+import { ActivityFeed } from "@/components/dashboard/activity-feed";
+import { CourtStatusPanel } from "@/components/dashboard/court-status-panel";
+import { DashboardStats } from "@/components/dashboard/dashboard-stats";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { RevenueChart } from "@/components/dashboard/revenue-chart";
 
 export default function DashboardPage() {
 	return (
-		<div className="space-y-8">
-			<section>
-				<h2 className="mb-1 text-lg font-semibold">Pending bookings</h2>
-				<p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-					Oldest first. Confirm to lock the slots, or reject to free them.
-				</p>
-				<PendingQueue />
-			</section>
+		<div className="space-y-6">
+			<PageHeader title="Bảng điều khiển" subtitle="Chào mừng trở lại — tổng quan sân của bạn." />
 
-			<section className="border-t border-zinc-200 pt-6 dark:border-zinc-800">
-				<h2 className="mb-1 text-lg font-semibold">Soft-holds</h2>
-				<p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-					Read-only. Live holds block slots temporarily; expired holds may need reconciliation.
-				</p>
-				<HoldsPanel />
-			</section>
+			<DashboardStats />
+
+			<RevenueChart />
+
+			<div className="grid gap-6 lg:grid-cols-2">
+				<CourtStatusPanel />
+				<ActivityFeed />
+			</div>
 		</div>
 	);
 }

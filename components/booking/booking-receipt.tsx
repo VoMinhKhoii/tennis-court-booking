@@ -24,13 +24,13 @@ function useQrSrc(receipt: BookingReceipt): string | null {
 /** Amount + assigned court hero card (shared across payment / done screens). */
 function AmountHero({ receipt }: { receipt: BookingReceipt }) {
 	return (
-		<div className="rounded-2xl border border-court-200 bg-court-25 p-5 text-center">
-			<p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Số tiền</p>
-			<p className="mt-1 font-mono text-4xl font-bold tabular-nums text-court-900">
+		<div className="rounded-2xl bg-brand-green p-6 text-center">
+			<p className="text-xs font-medium uppercase tracking-[0.12em] text-on-dark/70">Số tiền</p>
+			<p className="mt-1.5 font-mono text-4xl font-bold tabular-nums text-on-dark">
 				{formatVnd(receipt.amountVnd)}
 			</p>
-			<p className="mt-2 text-sm text-ink-soft">
-				Sân đã xếp: <strong className="text-ink">{receipt.courtName}</strong>
+			<p className="mt-2 text-sm text-on-dark/80">
+				Sân đã xếp: <strong className="font-semibold text-on-dark">{receipt.courtName}</strong>
 				{receipt.occurrences > 1 ? ` · ${receipt.occurrences} buổi` : ""}
 			</p>
 		</div>
@@ -98,7 +98,7 @@ export function PaymentStep({
 		<div className="space-y-5">
 			<div className="flex items-center justify-between">
 				<div>
-					<h2 className="font-display text-xl font-bold text-ink">Thanh toán</h2>
+					<h2 className="font-display text-2xl font-medium text-ink">Thanh toán</h2>
 					<p className="text-sm text-ink-soft">Quét mã để chuyển khoản giữ sân.</p>
 				</div>
 				<StatusPill tone="pending">Chờ xác nhận</StatusPill>
@@ -235,7 +235,7 @@ export function BookingDoneScreen({
 		<div className="space-y-5">
 			<div className="flex items-center justify-between">
 				<div>
-					<h2 className="font-display text-xl font-bold text-ink">
+					<h2 className="font-display text-2xl font-medium text-ink">
 						{confirmed ? "Đã xác nhận đặt sân" : "Đang chờ chủ sân xác nhận"}
 					</h2>
 					<p className="text-sm text-ink-soft">
@@ -303,7 +303,7 @@ export function CheckoutRecovery({
 		<div className="space-y-5">
 			<div className="flex items-center justify-between">
 				<div>
-					<h2 className="font-display text-xl font-bold text-ink">Hết thời gian giữ chỗ</h2>
+					<h2 className="font-display text-2xl font-medium text-ink">Hết thời gian giữ chỗ</h2>
 					<p className="text-sm text-ink-soft">
 						Khung giờ đã được mở lại. Bạn có thể đặt lại — không mất phí.
 					</p>
@@ -378,7 +378,7 @@ function DetailRow({
 						{text}
 					</span>
 					{copied ? (
-						<Check className="size-3.5 text-court-700" />
+						<Check className="size-3.5 text-success" />
 					) : (
 						<Copy className="size-3.5 text-ink-faint" />
 					)}

@@ -46,7 +46,7 @@ function bandOf(min: number): "morning" | "afternoon" | "evening" {
 	return "evening";
 }
 
-/** Green intensity by how many courts are free (more free → more inviting). */
+/** Fill intensity by how many courts are free (more free → deeper green). */
 function freeClass(free: number, total: number): string {
 	const ratio = total > 0 ? free / total : 0;
 	if (ratio >= 0.75) return "bg-court-300 hover:bg-court-400 text-court-950";
@@ -262,17 +262,11 @@ export function SlotGrid({
 						<Fragment key={date}>
 							<div
 								className={`sticky left-0 z-10 flex flex-col justify-center border-b border-line px-2 ${
-									isToday ? "bg-court-50" : "bg-paper-raised"
+									isToday ? "bg-secondary" : "bg-paper-raised"
 								}`}
 								style={{ height: ROW_H }}
 							>
-								<span
-									className={`font-display text-xs font-bold leading-none ${
-										isToday ? "text-court-800" : "text-ink"
-									}`}
-								>
-									{dow}
-								</span>
+								<span className="font-display text-xs font-bold leading-none text-ink">{dow}</span>
 								<span className="mt-0.5 text-[10px] leading-none text-ink-faint">{dm}</span>
 							</div>
 							{columns.map((c) => {
@@ -289,7 +283,7 @@ export function SlotGrid({
 								const disabled = !open || past || occupied;
 
 								let cls =
-									"flex items-center justify-center border-b border-line/60 text-[10px] font-bold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-court-600 focus-visible:ring-inset";
+									"flex items-center justify-center border-b border-line/60 text-[10px] font-bold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-inset";
 								cls += c.isHour ? " border-l border-line-strong" : " border-l border-line/50";
 								if (!open) {
 									cls += " bg-paper opacity-30 cursor-not-allowed";
@@ -300,10 +294,10 @@ export function SlotGrid({
 								} else if (occupied) {
 									cls += " net-hatch bg-chalk cursor-not-allowed";
 								} else if (selected) {
-									cls += " bg-court-600 text-white cursor-pointer";
+									cls += " bg-brand-green text-on-dark cursor-pointer";
 								} else if (isAnchor) {
 									cls +=
-										" bg-court-200 ring-2 ring-court-600 ring-inset animate-[live-pulse_2s_ease-in-out_infinite] cursor-pointer";
+										" bg-court-200 ring-2 ring-brand-green ring-inset animate-[live-pulse_2s_ease-in-out_infinite] cursor-pointer";
 								} else {
 									cls += ` ${freeClass(free, total)} cursor-pointer`;
 									if (dimmed) cls += " opacity-35";

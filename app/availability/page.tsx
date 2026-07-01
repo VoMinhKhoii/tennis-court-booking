@@ -13,11 +13,11 @@ export default function AvailabilityPage() {
 			<header className="mb-5">
 				<Link
 					href="/"
-					className="text-sm font-medium text-court-700 transition-colors hover:text-court-900"
+					className="text-sm font-medium text-coral transition-colors hover:text-coral-active"
 				>
 					← Trang chủ
 				</Link>
-				<h1 className="mt-3 font-display text-3xl font-extrabold tracking-tight text-ink">
+				<h1 className="mt-3 font-display text-4xl font-normal tracking-tight text-ink">
 					Lịch trống
 				</h1>
 				<p className="mt-1 text-sm text-ink-soft">

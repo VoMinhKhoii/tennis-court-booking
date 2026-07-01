@@ -29,11 +29,11 @@ export function CheckoutShell({
 			<header className="mb-5">
 				<Link
 					href={backHref}
-					className="text-sm font-medium text-court-700 transition-colors hover:text-court-900"
+					className="text-sm font-medium text-coral transition-colors hover:text-coral-active"
 				>
 					← Lịch trống
 				</Link>
-				<h1 className="mt-3 font-display text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
+				<h1 className="mt-3 font-display text-3xl font-normal tracking-tight text-ink sm:text-4xl">
 					Đặt sân
 				</h1>
 			</header>
@@ -84,7 +84,7 @@ export function OrderSummary({
 }) {
 	return (
 		<div className="space-y-4">
-			<h2 className="font-display text-sm font-bold uppercase tracking-wide text-court-800">
+			<h2 className="text-xs font-medium uppercase tracking-[0.12em] text-ink-faint">
 				Đơn đặt sân
 			</h2>
 			<dl className="space-y-2 text-sm">

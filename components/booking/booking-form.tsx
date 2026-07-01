@@ -390,10 +390,7 @@ export function BookingForm({
 					<div className="flex items-center justify-between gap-3 rounded-lg border border-court-300 bg-court-50 px-3 py-2.5 text-sm">
 						<span className="text-court-900">Bạn đang có một lượt giữ chỗ chưa hoàn tất.</span>
 						<div className="flex shrink-0 items-center gap-1">
-							<Link
-								href={`/book/${resumeRef}`}
-								className="font-semibold text-court-700 hover:underline"
-							>
+							<Link href={`/book/${resumeRef}`} className="font-semibold text-ink hover:underline">
 								Tiếp tục
 							</Link>
 							<button
@@ -472,7 +469,7 @@ export function BookingForm({
 											aria-pressed={on}
 											className={`h-10 w-10 cursor-pointer rounded-md text-sm font-semibold transition-colors ${
 												on
-													? "bg-court-900 text-white shadow-court"
+													? "bg-primary text-on-dark shadow-court"
 													: "border border-line-strong bg-paper-raised text-ink-soft hover:border-court-500"
 											}`}
 										>
@@ -646,12 +643,12 @@ export function Stepper({ stage }: { stage: "form" | "review" | "payment" | "don
 						<div className="flex min-w-0 flex-1 flex-col gap-1">
 							<span
 								className={`h-1 rounded-full transition-colors ${
-									done || active ? "bg-court-600" : "bg-line"
+									done || active ? "bg-primary" : "bg-line"
 								}`}
 							/>
 							<span
 								className={`truncate text-[11px] font-semibold ${
-									active ? "text-court-800" : done ? "text-ink-soft" : "text-ink-faint"
+									active ? "text-ink" : done ? "text-ink-soft" : "text-ink-faint"
 								}`}
 								aria-current={active ? "step" : undefined}
 							>
@@ -696,7 +693,7 @@ function ReviewBill({
 	return (
 		<div className="space-y-4">
 			<div>
-				<h3 className="font-display text-lg font-bold text-ink">Xác nhận đặt sân</h3>
+				<h3 className="font-display text-xl font-medium text-ink">Xác nhận đặt sân</h3>
 				<p className="text-sm text-ink-soft">Kiểm tra lại thông tin trước khi thanh toán.</p>
 			</div>
 
@@ -765,7 +762,7 @@ function LockedTimeSummary({
 	return (
 		<div className="rounded-xl border border-court-200 bg-court-25 p-4">
 			<div className="flex items-center justify-between">
-				<span className="font-display text-sm font-bold text-court-900">Khung giờ đã chọn</span>
+				<span className="font-display text-base font-medium text-ink">Khung giờ đã chọn</span>
 				<StatusPill tone={type === "monthly" ? "confirmed" : "free"}>
 					{type === "monthly" ? "Hàng tháng" : "Một buổi"}
 				</StatusPill>
