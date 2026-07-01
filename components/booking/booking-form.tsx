@@ -16,13 +16,11 @@ import {
 import { StatusPill } from "@/components/ui/status-pill";
 import { createHold } from "@/lib/actions/create-booking";
 import { MAX_BLOCK_COUNT } from "@/lib/booking/constants";
-import { enumerateSlotDatesMulti, ictToday } from "@/lib/booking/dates";
+import { ictToday } from "@/lib/booking/dates";
 import { formatVnd } from "@/lib/booking/format";
 import {
 	minutesToTime,
-	monthLabel,
 	monthStartOf,
-	nextMonthStart,
 	rangeIctBlockStarts,
 	timeToMinutes,
 } from "@/lib/booking/grid";
@@ -33,23 +31,9 @@ import { usePublicCourts, usePublicSettings } from "@/lib/queries/public";
 import { CheckoutShell, OrderSummary } from "./checkout-shell";
 import { clearCheckout, loadCheckout, saveCheckout } from "./checkout-storage";
 
-// Chip order Mon→Sun (values stay 0=Sun..6=Sat to match Postgres dow).
-const WEEKDAY_CHIPS: { value: number; label: string }[] = [
-	{ value: 1, label: "T2" },
-	{ value: 2, label: "T3" },
-	{ value: 3, label: "T4" },
-	{ value: 4, label: "T5" },
-	{ value: 5, label: "T6" },
-	{ value: 6, label: "T7" },
-	{ value: 0, label: "CN" },
-];
-
-/** Prefill from a grid selection or an owner deep-link. No court is chosen. */
+/** Prefill from a grid selection or an owner deep-link. One-off bookings only. */
 export type BookingInitial = Partial<{
-	type: "adhoc" | "monthly";
 	date: string;
-	month: string;
-	weekdays: number[];
 	startTime: string;
 	blockCount: number;
 	preferredCourtId: string;
@@ -66,7 +50,6 @@ function startTimeOptions(openMin: number, closeMin: number, blockCount: number)
 }
 
 type FormState = {
-	type: "adhoc" | "monthly";
 	preferredCourtId: string; // "" = auto (balanced)
 	customerName: string;
 	zaloPhone: string;
@@ -74,8 +57,6 @@ type FormState = {
 	startTime: string;
 	blockCount: number;
 	date: string;
-	month: string;
-	weekdays: number[];
 };
 
 export function BookingForm({
@@ -91,10 +72,8 @@ export function BookingForm({
 	const activeCourts = useMemo(() => (courts ?? []).filter((c) => c.is_active), [courts]);
 
 	const today = useMemo(() => ictToday(), []);
-	const currentMonth = useMemo(() => monthStartOf(today), [today]);
 
 	const [form, setForm] = useState<FormState>(() => ({
-		type: initial?.type ?? "adhoc",
 		preferredCourtId: initial?.preferredCourtId ?? "",
 		customerName: "",
 		zaloPhone: "",
@@ -102,8 +81,6 @@ export function BookingForm({
 		startTime: initial?.startTime ?? "",
 		blockCount: initial?.blockCount ?? 2,
 		date: initial?.date ?? today,
-		month: initial?.month ?? currentMonth,
-		weekdays: initial?.weekdays ?? [],
 	}));
 	const [stage, setStage] = useState<"form" | "review">("form");
 	const [error, setError] = useState<string | null>(null);
@@ -131,16 +108,7 @@ export function BookingForm({
 		};
 	}, [activeCourts]);
 
-	const enumeratedDates = useMemo<string[]>(() => {
-		try {
-			if (form.type === "adhoc") {
-				return form.date ? [form.date] : [];
-			}
-			return enumerateSlotDatesMulti(form.month, form.weekdays, today);
-		} catch {
-			return [];
-		}
-	}, [form.type, form.date, form.month, form.weekdays, today]);
+	const enumeratedDates = useMemo<string[]>(() => (form.date ? [form.date] : []), [form.date]);
 
 	const rate = settings?.flat_hourly_rate_vnd ?? 0;
 	const amountPreview =
@@ -148,8 +116,7 @@ export function BookingForm({
 			? computeAmountVnd(rate, form.blockCount, enumeratedDates.length)
 			: null;
 
-	const badgeMonth = form.type === "adhoc" ? monthStartOf(form.date) : form.month;
-	const { data: availability } = useAvailabilityAllCourts(badgeMonth);
+	const { data: availability } = useAvailabilityAllCourts(monthStartOf(form.date));
 
 	// date -> (court_id -> occupied block-start minutes).
 	const occByDateCourt = useMemo(() => {
@@ -201,15 +168,10 @@ export function BookingForm({
 		setForm((f) => ({ ...f, [key]: value }));
 	}
 
-	function toggleWeekday(wd: number) {
-		setForm((f) => ({
-			...f,
-			weekdays: f.weekdays.includes(wd) ? f.weekdays.filter((d) => d !== wd) : [...f.weekdays, wd],
-		}));
-	}
-
 	function buildInput(): BookingInput {
-		const base = {
+		return {
+			type: "adhoc",
+			date: form.date,
 			customerName: form.customerName,
 			zaloPhone: form.zaloPhone,
 			groupSize: form.groupSize,
@@ -217,10 +179,6 @@ export function BookingForm({
 			blockCount: form.blockCount,
 			preferredCourtId: form.preferredCourtId || undefined,
 		};
-		if (form.type === "adhoc") {
-			return { type: "adhoc", date: form.date, ...base };
-		}
-		return { type: "monthly", month: form.month, weekdays: form.weekdays, ...base };
 	}
 
 	function onReview(e: React.FormEvent) {
@@ -286,12 +244,7 @@ export function BookingForm({
 	const preferredCourtName = activeCourts.find((c) => c.id === form.preferredCourtId)?.name ?? null;
 
 	// ---- Live order summary (the Stripe sidebar) ---------------------------
-	const weekdaysLabel = WEEKDAY_CHIPS.filter((w) => form.weekdays.includes(w.value))
-		.map((w) => w.label)
-		.join(", ");
-	const summaryRows: { label: string; value: ReactNode }[] = [
-		{ label: "Loại", value: form.type === "monthly" ? "Hàng tháng" : "Một buổi" },
-	];
+	const summaryRows: { label: string; value: ReactNode }[] = [];
 	if (form.startTime) {
 		summaryRows.push({
 			label: "Khung giờ",
@@ -303,27 +256,12 @@ export function BookingForm({
 			),
 		});
 	}
-	if (form.type === "monthly") {
-		summaryRows.push({ label: "Các thứ", value: weekdaysLabel || "—" });
+	if (form.date) {
+		summaryRows.push({ label: "Ngày", value: dateLabel(form.date) });
 	}
 	summaryRows.push({ label: "Sân", value: preferredCourtName ?? "Tự động xếp sân" });
-	if (enumeratedDates.length > 0) {
-		summaryRows.push({ label: "Số buổi", value: String(enumeratedDates.length) });
-	}
 	const totalNode = amountPreview === null ? "—" : formatVnd(amountPreview);
-	const summaryNode = (
-		<OrderSummary
-			rows={summaryRows}
-			amount={totalNode}
-			note={
-				amountPreview !== null && form.type === "monthly" ? (
-					<p className="text-xs text-ink-faint">
-						{enumeratedDates.length} buổi × {form.blockCount / 2} giờ
-					</p>
-				) : undefined
-			}
-		/>
-	);
+	const summaryNode = <OrderSummary rows={summaryRows} amount={totalNode} />;
 
 	// ---- Review stage: read-only details, then create the hold. -------------
 	if (stage === "review") {
@@ -332,11 +270,9 @@ export function BookingForm({
 				<div className="space-y-5">
 					<Stepper stage={stage} />
 					<ReviewBill
-						type={form.type}
 						startTime={form.startTime}
 						endTime={endTime}
 						blockCount={form.blockCount}
-						weekdays={form.weekdays}
 						preferredCourtName={preferredCourtName}
 						customerName={form.customerName}
 						zaloPhone={form.zaloPhone}
@@ -364,6 +300,7 @@ export function BookingForm({
 						</Button>
 						<Button
 							type="button"
+							variant="accent"
 							size="lg"
 							className="flex-[2]"
 							disabled={pending}
@@ -410,79 +347,23 @@ export function BookingForm({
 
 				{lockSlot ? (
 					<LockedTimeSummary
-						type={form.type}
 						startTime={form.startTime}
 						endTime={endTime}
 						blockCount={form.blockCount}
+						date={form.date}
 					/>
 				) : (
-					<div className="space-y-1.5">
-						<Label>Loại đặt sân</Label>
-						<SegToggle
-							options={[
-								{ value: "adhoc", label: "Một buổi" },
-								{ value: "monthly", label: "Hàng tháng" },
-							]}
-							value={form.type}
-							onChange={(v) => update("type", v as FormState["type"])}
+					<Field id="date" label="Ngày">
+						<Input
+							id="date"
+							type="date"
+							required
+							min={today}
+							value={form.date}
+							onChange={(e) => update("date", e.target.value)}
+							className="h-11"
 						/>
-					</div>
-				)}
-
-				{form.type === "adhoc" ? (
-					!lockSlot && (
-						<Field id="date" label="Ngày">
-							<Input
-								id="date"
-								type="date"
-								required
-								min={today}
-								value={form.date}
-								onChange={(e) => update("date", e.target.value)}
-								className="h-11"
-							/>
-						</Field>
-					)
-				) : (
-					<>
-						<div className="space-y-1.5">
-							<Label>Tháng áp dụng</Label>
-							<SegToggle
-								options={[currentMonth, nextMonthStart(currentMonth)].map((m) => ({
-									value: m,
-									label: monthLabel(m),
-								}))}
-								value={form.month}
-								onChange={(v) => update("month", v)}
-							/>
-						</div>
-						<div className="space-y-1.5">
-							<Label>Các thứ trong tuần</Label>
-							<div className="flex flex-wrap gap-1.5">
-								{WEEKDAY_CHIPS.map((w) => {
-									const on = form.weekdays.includes(w.value);
-									return (
-										<button
-											key={w.value}
-											type="button"
-											onClick={() => toggleWeekday(w.value)}
-											aria-pressed={on}
-											className={`h-10 w-10 cursor-pointer rounded-md text-sm font-semibold transition-colors ${
-												on
-													? "bg-primary text-on-dark shadow-court"
-													: "border border-line-strong bg-paper-raised text-ink-soft hover:border-court-500"
-											}`}
-										>
-											{w.label}
-										</button>
-									);
-								})}
-							</div>
-							<p className="text-xs text-ink-faint">
-								Chọn một hoặc nhiều thứ — sân giữ vào các thứ đó hằng tuần.
-							</p>
-						</div>
-					</>
+					</Field>
 				)}
 
 				{!lockSlot && (
@@ -526,7 +407,7 @@ export function BookingForm({
 					</div>
 				)}
 
-				<Field id="court" label="Sân ưu tiên">
+				<Field id="court" label="Sân">
 					<Select
 						items={courtItems}
 						value={form.preferredCourtId}
@@ -585,11 +466,7 @@ export function BookingForm({
 
 				{enumeratedDates.length > 0 && (
 					<div className="rounded-lg border border-line bg-paper p-3">
-						<div className="mb-2 text-sm font-semibold text-ink">
-							{form.type === "monthly"
-								? `Các buổi trong tháng (${enumeratedDates.length})`
-								: "Buổi đã chọn"}
-						</div>
+						<div className="mb-2 text-sm font-semibold text-ink">Buổi đã chọn</div>
 						<ul className="space-y-1.5 text-sm">
 							{enumeratedDates.map((d) => {
 								const taken = isDateTaken(d);
@@ -612,7 +489,7 @@ export function BookingForm({
 					</p>
 				)}
 
-				<Button type="submit" size="lg" disabled={pending} className="w-full">
+				<Button type="submit" variant="accent" size="lg" disabled={pending} className="w-full">
 					Tiếp tục
 				</Button>
 				<p className="text-center text-xs text-ink-faint">
@@ -663,11 +540,9 @@ export function Stepper({ stage }: { stage: "form" | "review" | "payment" | "don
 }
 
 function ReviewBill({
-	type,
 	startTime,
 	endTime,
 	blockCount,
-	weekdays,
 	preferredCourtName,
 	customerName,
 	zaloPhone,
@@ -675,11 +550,9 @@ function ReviewBill({
 	dates,
 	isDateTaken,
 }: {
-	type: "adhoc" | "monthly";
 	startTime: string;
 	endTime: string | null;
 	blockCount: number;
-	weekdays: number[];
 	preferredCourtName: string | null;
 	customerName: string;
 	zaloPhone: string;
@@ -687,9 +560,6 @@ function ReviewBill({
 	dates: string[];
 	isDateTaken: (d: string) => boolean;
 }) {
-	const weekdaysLabel = WEEKDAY_CHIPS.filter((w) => weekdays.includes(w.value))
-		.map((w) => w.label)
-		.join(", ");
 	return (
 		<div className="space-y-4">
 			<div>
@@ -699,7 +569,6 @@ function ReviewBill({
 
 			<div className="rounded-xl border border-court-200 bg-court-25 p-4">
 				<dl className="space-y-2 text-sm">
-					<Row label="Loại" value={type === "monthly" ? "Hàng tháng" : "Một buổi"} />
 					<Row
 						label="Khung giờ"
 						value={
@@ -709,7 +578,6 @@ function ReviewBill({
 							</span>
 						}
 					/>
-					{type === "monthly" && <Row label="Các thứ" value={weekdaysLabel || "—"} />}
 					<Row label="Sân" value={preferredCourtName ?? "Tự động xếp sân"} />
 					<Row label="Người đặt" value={`${customerName} · ${zaloPhone} · ${groupSize} người`} />
 				</dl>
@@ -717,9 +585,7 @@ function ReviewBill({
 
 			{dates.length > 0 && (
 				<div className="rounded-lg border border-line bg-paper p-3">
-					<div className="mb-2 text-sm font-semibold text-ink">
-						{type === "monthly" ? `Các buổi (${dates.length})` : "Buổi đã chọn"}
-					</div>
+					<div className="mb-2 text-sm font-semibold text-ink">Buổi đã chọn</div>
 					<ul className="space-y-1.5 text-sm">
 						{dates.map((d) => {
 							const taken = isDateTaken(d);
@@ -749,58 +615,27 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function LockedTimeSummary({
-	type,
 	startTime,
 	endTime,
 	blockCount,
+	date,
 }: {
-	type: "adhoc" | "monthly";
 	startTime: string;
 	endTime: string | null;
 	blockCount: number;
+	date: string;
 }) {
 	return (
 		<div className="rounded-xl border border-court-200 bg-court-25 p-4">
 			<div className="flex items-center justify-between">
 				<span className="font-display text-base font-medium text-ink">Khung giờ đã chọn</span>
-				<StatusPill tone={type === "monthly" ? "confirmed" : "free"}>
-					{type === "monthly" ? "Hàng tháng" : "Một buổi"}
-				</StatusPill>
+				<StatusPill tone="free">{dateLabel(date)}</StatusPill>
 			</div>
 			<p className="mt-2 font-mono text-lg font-bold tabular-nums text-ink">
 				{startTime}
 				{endTime ? `–${endTime}` : ""}{" "}
 				<span className="text-sm font-normal text-ink-faint">({blockCount / 2} giờ)</span>
 			</p>
-		</div>
-	);
-}
-
-function SegToggle<T extends string>({
-	options,
-	value,
-	onChange,
-}: {
-	options: { value: T; label: string }[];
-	value: T;
-	onChange: (v: T) => void;
-}) {
-	return (
-		<div className="flex gap-1 rounded-lg border border-line bg-paper p-1">
-			{options.map((o) => (
-				<button
-					key={o.value}
-					type="button"
-					onClick={() => onChange(o.value)}
-					className={`flex-1 cursor-pointer rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
-						value === o.value
-							? "bg-court-900 text-white shadow-court"
-							: "text-ink-soft hover:bg-court-50"
-					}`}
-				>
-					{o.label}
-				</button>
-			))}
 		</div>
 	);
 }

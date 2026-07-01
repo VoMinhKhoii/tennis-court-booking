@@ -112,7 +112,7 @@ function RateForm({ settings, onDone }: { settings: SettingsRow | null; onDone: 
 				<span className="text-sm font-medium text-ink-soft">Giá theo giờ (VND)</span>
 				<input
 					type="number"
-					min={1}
+					min={1000}
 					step={1000}
 					required
 					value={rate}

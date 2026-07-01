@@ -1,30 +1,26 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
-import { EB_Garamond, Inter, JetBrains_Mono } from "next/font/google";
+import { EB_Garamond, Inter } from "next/font/google";
 import "./globals.css";
 import { SiteBackground } from "@/components/site-background";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 import { Providers } from "./providers";
 
-// Display: editorial serif for headlines (Anthropic "Copernicus" substitute).
+// Two typefaces, Anthropic-style: an editorial serif for display headlines
+// ("Copernicus" substitute) over a humanist sans for everything else. Inter
+// also carries the numerals (times, amounts, references) via tabular-nums, so
+// no separate monospace face is needed. Both cover Vietnamese diacritics.
 const ebGaramond = EB_Garamond({
 	variable: "--font-eb-garamond",
 	subsets: ["latin", "vietnamese"],
 	weight: ["400", "500"],
 });
 
-// Body: humanist sans for prose + UI; carries Vietnamese diacritics cleanly.
 const inter = Inter({
 	variable: "--font-inter",
 	subsets: ["latin", "vietnamese"],
 	weight: ["400", "500", "600"],
-});
-
-// Tabular numerals for the time axis, amounts and references.
-const jetbrainsMono = JetBrains_Mono({
-	variable: "--font-jetbrains-mono",
-	subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
@@ -42,15 +38,7 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	return (
-		<html
-			lang="vi"
-			className={cn(
-				"h-full antialiased",
-				ebGaramond.variable,
-				inter.variable,
-				jetbrainsMono.variable,
-			)}
-		>
+		<html lang="vi" className={cn("h-full antialiased", ebGaramond.variable, inter.variable)}>
 			<body className="flex min-h-full flex-col font-sans">
 				<SiteBackground />
 				<Providers>{children}</Providers>
