@@ -62,8 +62,26 @@ function SettingsCard({
 	);
 }
 
+/** A price-band draft row in the editor (string-typed for the inputs). */
+type BandDraft = { start: string; rate: string };
+
+const DEFAULT_BANDS: BandDraft[] = [{ start: "06:00", rate: "" }];
+
+function toDrafts(settings: SettingsRow | null): BandDraft[] {
+	const bands = settings?.price_bands;
+	if (!bands || bands.length === 0) return DEFAULT_BANDS;
+	return bands.map((b) => ({ start: b.start, rate: String(b.rate) }));
+}
+
+/** 30-min-aligned start-time options across the day. */
+const START_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+	const h = String(Math.floor(i / 2)).padStart(2, "0");
+	const m = i % 2 === 0 ? "00" : "30";
+	return `${h}:${m}`;
+});
+
 function RateForm({ settings, onDone }: { settings: SettingsRow | null; onDone: () => void }) {
-	const [rate, setRate] = useState(String(settings?.flat_hourly_rate_vnd || ""));
+	const [bands, setBands] = useState<BandDraft[]>(() => toDrafts(settings));
 	const [bankBin, setBankBin] = useState(settings?.bank_bin ?? "");
 	const [bankAccountNumber, setBankAccountNumber] = useState(settings?.bank_account_number ?? "");
 	const [bankAccountName, setBankAccountName] = useState(settings?.bank_account_name ?? "");
@@ -73,19 +91,33 @@ function RateForm({ settings, onDone }: { settings: SettingsRow | null; onDone: 
 	const [pending, startTransition] = useTransition();
 
 	useEffect(() => {
-		setRate(String(settings?.flat_hourly_rate_vnd || ""));
+		setBands(toDrafts(settings));
 		setBankBin(settings?.bank_bin ?? "");
 		setBankAccountNumber(settings?.bank_account_number ?? "");
 		setBankAccountName(settings?.bank_account_name ?? "");
 		setOwnerZalo(settings?.owner_zalo ?? "");
 	}, [settings]);
 
+	function updateBand(index: number, patch: Partial<BandDraft>) {
+		setBands((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+	}
+	function addBand() {
+		setBands((rows) => [...rows, { start: "", rate: "" }]);
+	}
+	function removeBand(index: number) {
+		setBands((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows));
+	}
+
 	function onSubmit(e: React.FormEvent) {
 		e.preventDefault();
 		setError(null);
 		setSaved(false);
+		// Sort by start so the stored bands chain contiguously; schema rejects dupes.
+		const priceBands = bands
+			.map((b) => ({ start: b.start, rate: Number(b.rate) }))
+			.sort((a, b) => a.start.localeCompare(b.start));
 		const parsed = settingsInputSchema.safeParse({
-			flatHourlyRateVnd: Number(rate),
+			priceBands,
 			bankBin,
 			bankAccountNumber,
 			bankAccountName,
@@ -108,18 +140,62 @@ function RateForm({ settings, onDone }: { settings: SettingsRow | null; onDone: 
 
 	return (
 		<form onSubmit={onSubmit} className="space-y-3">
-			<label className="block space-y-1">
-				<span className="text-sm font-medium text-ink-soft">Giá theo giờ (VND)</span>
-				<input
-					type="number"
-					min={1000}
-					step={1000}
-					required
-					value={rate}
-					onChange={(e) => setRate(e.target.value)}
-					className={inputClass}
-				/>
-			</label>
+			<fieldset className="space-y-2">
+				<legend className="text-sm font-medium text-ink-soft">Giá theo khung giờ (VND/giờ)</legend>
+				<p className="text-xs text-ink-faint">
+					Mỗi khung áp dụng từ giờ bắt đầu đến khung kế tiếp. Khung cuối kéo dài đến giờ đóng sân.
+				</p>
+				<div className="space-y-2">
+					{bands.map((band, i) => (
+						// biome-ignore lint/suspicious/noArrayIndexKey: rows are positional drafts, reorder on save
+						<div key={i} className="flex items-center gap-2">
+							<select
+								aria-label="Giờ bắt đầu"
+								required
+								value={band.start}
+								onChange={(e) => updateBand(i, { start: e.target.value })}
+								className={inputClass}
+							>
+								<option value="" disabled>
+									Giờ bắt đầu
+								</option>
+								{START_OPTIONS.map((t) => (
+									<option key={t} value={t}>
+										{t}
+									</option>
+								))}
+							</select>
+							<input
+								type="number"
+								min={1000}
+								step={1000}
+								required
+								placeholder="Giá / giờ"
+								aria-label="Giá theo giờ"
+								value={band.rate}
+								onChange={(e) => updateBand(i, { rate: e.target.value })}
+								className={inputClass}
+							/>
+							<button
+								type="button"
+								onClick={() => removeBand(i)}
+								disabled={bands.length <= 1}
+								aria-label="Xóa khung giờ"
+								className="shrink-0 rounded-md px-2 py-2 text-ink-faint transition-colors hover:bg-court-50 hover:text-signal-red disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-faint"
+							>
+								✕
+							</button>
+						</div>
+					))}
+				</div>
+				<button
+					type="button"
+					onClick={addBand}
+					className="text-sm font-medium text-court-700 transition-colors hover:text-court-900"
+				>
+					+ Thêm khung giờ
+				</button>
+			</fieldset>
 
 			<div className="border-t border-line pt-3">
 				<div className="text-sm font-medium text-ink-soft">Thông tin ngân hàng (VietQR động)</div>

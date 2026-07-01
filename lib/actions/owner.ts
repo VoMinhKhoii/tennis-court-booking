@@ -242,7 +242,7 @@ export async function updateCourt(
 	return ok({ id: data.id });
 }
 
-/** Update settings: flat hourly rate (spec §7, §8). QR upload is a separate flow. */
+/** Update settings: time-band pricing + bank details (spec §7, §8). QR upload is a separate flow. */
 export async function updateSettings(input: SettingsInput): Promise<ActionResult<{ id: number }>> {
 	const parsed = settingsInputSchema.safeParse(input);
 	if (!parsed.success) {
@@ -260,7 +260,9 @@ export async function updateSettings(input: SettingsInput): Promise<ActionResult
 	const { data, error } = await guard.supabase
 		.from("settings")
 		.update({
-			flat_hourly_rate_vnd: s.flatHourlyRateVnd,
+			// price_bands is the pricing model; flat_hourly_rate_vnd is left as the
+			// fallback for any minute before the first band and is not edited here.
+			price_bands: s.priceBands,
 			bank_bin: blankToNull(s.bankBin),
 			bank_account_number: blankToNull(s.bankAccountNumber),
 			bank_account_name: blankToNull(s.bankAccountName),

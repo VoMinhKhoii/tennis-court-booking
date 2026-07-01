@@ -8,10 +8,17 @@ select v.name, time '06:00', time '21:00', true
 from (values ('Sân 1'), ('Sân 2'), ('Sân 3')) as v(name)
 where not exists (select 1 from public.court);
 
--- Single settings row with a sample flat rate (200,000 VND/hour).
--- owner_uid is left NULL here and filled by the owner-seeding step below.
-insert into public.settings (id, flat_hourly_rate_vnd, qr_image_path, owner_uid)
-values (1, 200000, null, null)
+-- Single settings row. flat_hourly_rate_vnd is a fallback (minutes before the
+-- first band); price_bands is the real pricing model — time-of-day rates matching
+-- the advertised "Bảng Giá Theo Giờ" table. owner_uid is filled by the step below.
+insert into public.settings (id, flat_hourly_rate_vnd, price_bands, qr_image_path, owner_uid)
+values (
+	1,
+	200000,
+	'[{"start":"06:00","rate":350000},{"start":"11:00","rate":300000},{"start":"15:00","rate":350000},{"start":"17:00","rate":450000}]'::jsonb,
+	null,
+	null
+)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------

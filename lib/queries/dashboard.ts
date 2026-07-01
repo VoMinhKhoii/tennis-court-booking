@@ -32,7 +32,7 @@ export function useSettings() {
 			const { data, error } = await supabase
 				.from("settings")
 				.select(
-					"id, flat_hourly_rate_vnd, qr_image_path, bank_bin, bank_account_number, bank_account_name, owner_zalo",
+					"id, flat_hourly_rate_vnd, price_bands, qr_image_path, bank_bin, bank_account_number, bank_account_name, owner_zalo",
 				)
 				.eq("id", 1)
 				.maybeSingle();
