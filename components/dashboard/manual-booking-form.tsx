@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
 import { createManualBooking } from "@/lib/actions/owner";
 import { MAX_BLOCK_COUNT } from "@/lib/booking/constants";
 import { enumerateSlotDates, ictToday } from "@/lib/booking/dates";
@@ -18,10 +19,10 @@ import { formatVnd } from "@/lib/dashboard/format";
 import { useCourts, useSettings } from "@/lib/queries/dashboard";
 import type { CourtRow } from "@/lib/queries/types";
 
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEKDAYS = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
 
 const inputClass =
-	"w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950";
+	"w-full rounded-md border border-line-strong bg-paper-raised px-3 py-2 text-sm text-ink outline-none transition-colors focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20";
 
 function startTimeOptions(court: CourtRow): string[] {
 	const open = timeToMinutes(court.open_time);
@@ -122,7 +123,7 @@ export function ManualBookingForm() {
 		setError(null);
 		const parsed = manualBookingInputSchema.safeParse(buildInput());
 		if (!parsed.success) {
-			setError(parsed.error.issues[0]?.message ?? "Please check the form.");
+			setError(parsed.error.issues[0]?.message ?? "Vui lòng kiểm tra lại biểu mẫu.");
 			return;
 		}
 		startTransition(async () => {
@@ -136,39 +137,38 @@ export function ManualBookingForm() {
 					setError(result.error);
 				}
 			} catch {
-				setError("Failed to create the booking. Please try again.");
+				setError("Không tạo được lượt đặt. Vui lòng thử lại.");
 			}
 		});
 	}
 
 	if (success) {
 		return (
-			<div className="rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950">
-				<div className="font-medium text-emerald-800 dark:text-emerald-200">Booking confirmed</div>
-				<div className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
-					Ref <span className="font-mono">{success.reference}</span> · {success.occurrences} session
-					{success.occurrences === 1 ? "" : "s"} · {formatVnd(success.amountVnd)}
+			<div className="rounded-xl border border-brand-green/40 bg-brand-green-soft/25 p-5 shadow-court">
+				<div className="font-display text-lg font-medium text-ink">Đã xác nhận lượt đặt</div>
+				<div className="mt-1 text-sm text-ink-soft">
+					Mã đặt <span className="font-mono">{success.reference}</span> · {success.occurrences} buổi
+					· {formatVnd(success.amountVnd)}
 				</div>
-				<button
-					type="button"
-					onClick={() => setSuccess(null)}
-					className="mt-3 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white"
-				>
-					New booking
-				</button>
+				<Button size="sm" className="mt-3" onClick={() => setSuccess(null)}>
+					Đặt sân mới
+				</Button>
 			</div>
 		);
 	}
 
 	if (activeCourts.length === 0) {
-		return <p className="text-sm text-zinc-500">Add an active court first.</p>;
+		return <p className="text-sm text-ink-faint">Vui lòng thêm một sân đang mở trước.</p>;
 	}
 
 	const times = court ? startTimeOptions(court) : [];
 
 	return (
-		<form onSubmit={onSubmit} className="space-y-5">
-			<Field label="Customer name">
+		<form
+			onSubmit={onSubmit}
+			className="max-w-xl space-y-5 rounded-xl border border-line bg-card p-5 shadow-court sm:p-6"
+		>
+			<Field label="Tên khách hàng">
 				<input
 					type="text"
 					required
@@ -178,7 +178,7 @@ export function ManualBookingForm() {
 				/>
 			</Field>
 
-			<Field label="Zalo phone">
+			<Field label="Zalo">
 				<input
 					type="tel"
 					required
@@ -190,7 +190,7 @@ export function ManualBookingForm() {
 				/>
 			</Field>
 
-			<Field label="Court">
+			<Field label="Sân">
 				<select
 					value={effectiveCourtId}
 					onChange={(e) => update("courtId", e.target.value)}
@@ -204,7 +204,7 @@ export function ManualBookingForm() {
 				</select>
 			</Field>
 
-			<Field label="Booking type">
+			<Field label="Loại đặt sân">
 				<div className="flex gap-2">
 					{(["adhoc", "monthly"] as const).map((t) => (
 						<button
@@ -213,18 +213,18 @@ export function ManualBookingForm() {
 							onClick={() => update("type", t)}
 							className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
 								form.type === t
-									? "bg-emerald-600 text-white"
-									: "border border-zinc-300 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+									? "bg-primary text-on-dark"
+									: "border border-line-strong text-ink-soft"
 							}`}
 						>
-							{t === "adhoc" ? "One-off (ad-hoc)" : "Monthly"}
+							{t === "adhoc" ? "Lẻ" : "Theo tháng"}
 						</button>
 					))}
 				</div>
 			</Field>
 
 			{form.type === "adhoc" ? (
-				<Field label="Date">
+				<Field label="Ngày">
 					<input
 						type="date"
 						required
@@ -236,7 +236,7 @@ export function ManualBookingForm() {
 				</Field>
 			) : (
 				<>
-					<Field label="Target month">
+					<Field label="Tháng áp dụng">
 						<div className="flex gap-2">
 							{[currentMonth, nextMonthStart(currentMonth)].map((m) => (
 								<button
@@ -245,8 +245,8 @@ export function ManualBookingForm() {
 									onClick={() => update("month", m)}
 									className={`flex-1 rounded-md px-3 py-2 text-sm ${
 										form.month === m
-											? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-											: "border border-zinc-300 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+											? "bg-secondary text-ink"
+											: "border border-line-strong text-ink-soft"
 									}`}
 								>
 									{monthLabel(m)}
@@ -254,7 +254,7 @@ export function ManualBookingForm() {
 							))}
 						</div>
 					</Field>
-					<Field label="Weekday">
+					<Field label="Thứ">
 						<select
 							value={form.weekday}
 							onChange={(e) => update("weekday", Number(e.target.value))}
@@ -270,14 +270,14 @@ export function ManualBookingForm() {
 				</>
 			)}
 
-			<Field label="Start time">
+			<Field label="Giờ bắt đầu">
 				<select
 					required
 					value={form.startTime}
 					onChange={(e) => update("startTime", e.target.value)}
 					className={inputClass}
 				>
-					<option value="">Select a time</option>
+					<option value="">Chọn giờ</option>
 					{times.map((t) => (
 						<option key={t} value={t}>
 							{t}
@@ -286,7 +286,7 @@ export function ManualBookingForm() {
 				</select>
 			</Field>
 
-			<Field label="Duration">
+			<Field label="Thời lượng">
 				<select
 					value={form.blockCount}
 					onChange={(e) => update("blockCount", Number(e.target.value))}
@@ -294,13 +294,13 @@ export function ManualBookingForm() {
 				>
 					{Array.from({ length: MAX_BLOCK_COUNT }, (_, i) => i + 1).map((n) => (
 						<option key={n} value={n}>
-							{n * 30} min ({n / 2} h)
+							{n * 30} phút ({n / 2} giờ)
 						</option>
 					))}
 				</select>
 			</Field>
 
-			<Field label="Group size">
+			<Field label="Số người">
 				<input
 					type="number"
 					min={1}
@@ -310,34 +310,27 @@ export function ManualBookingForm() {
 				/>
 			</Field>
 
-			<div className="rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900">
+			<div className="rounded-lg bg-secondary p-3 text-sm">
 				<div className="flex items-center justify-between">
-					<span className="text-zinc-600 dark:text-zinc-400">Amount</span>
+					<span className="text-ink-soft">Số tiền</span>
 					<span className="text-lg font-semibold tabular-nums">
 						{amountPreview === null ? "—" : formatVnd(amountPreview)}
 					</span>
 				</div>
 				{amountPreview !== null && form.type === "monthly" && (
-					<p className="mt-1 text-xs text-zinc-500">
-						{enumeratedDates.length} session{enumeratedDates.length === 1 ? "" : "s"} ×{" "}
-						{form.blockCount / 2} h
+					<p className="mt-1 text-xs text-ink-faint">
+						{enumeratedDates.length} buổi × {form.blockCount / 2} giờ
 					</p>
 				)}
 			</div>
 
 			{error && (
-				<p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-					{error}
-				</p>
+				<p className="rounded-md bg-signal-red-soft px-3 py-2 text-sm text-signal-red">{error}</p>
 			)}
 
-			<button
-				type="submit"
-				disabled={pending}
-				className="w-full rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
-			>
-				{pending ? "Creating…" : "Create confirmed booking"}
-			</button>
+			<Button type="submit" size="lg" disabled={pending} className="h-11 w-full">
+				{pending ? "Đang tạo…" : "Tạo lượt đặt đã xác nhận"}
+			</Button>
 		</form>
 	);
 }
@@ -347,7 +340,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 		// The control is the children, nested inside this label; Biome can't see through the boundary.
 		// biome-ignore lint/a11y/noLabelWithoutControl: control is the children, nested in the label
 		<label className="block space-y-1">
-			<span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{label}</span>
+			<span className="text-sm font-medium text-ink-soft">{label}</span>
 			{children}
 		</label>
 	);

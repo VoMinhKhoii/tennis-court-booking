@@ -2,10 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
 import { login } from "@/lib/actions/auth";
 
 const inputClass =
-	"w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950";
+	"w-full rounded-md border border-line-strong bg-paper-raised px-3 py-2 text-sm text-ink outline-none transition-colors focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20";
 
 export function LoginForm() {
 	const router = useRouter();
@@ -27,7 +28,7 @@ export function LoginForm() {
 					setError(result.error);
 				}
 			} catch {
-				setError("Unable to sign in right now. Please try again.");
+				setError("Không thể đăng nhập lúc này. Vui lòng thử lại.");
 			}
 		});
 	}
@@ -35,7 +36,7 @@ export function LoginForm() {
 	return (
 		<form onSubmit={onSubmit} className="space-y-4">
 			<label className="block space-y-1">
-				<span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Email</span>
+				<span className="text-sm font-medium text-ink-soft">Email</span>
 				<input
 					type="email"
 					required
@@ -47,7 +48,7 @@ export function LoginForm() {
 			</label>
 
 			<label className="block space-y-1">
-				<span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Password</span>
+				<span className="text-sm font-medium text-ink-soft">Mật khẩu</span>
 				<input
 					type="password"
 					required
@@ -59,18 +60,12 @@ export function LoginForm() {
 			</label>
 
 			{error && (
-				<p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-					{error}
-				</p>
+				<p className="rounded-md bg-signal-red-soft px-3 py-2 text-sm text-signal-red">{error}</p>
 			)}
 
-			<button
-				type="submit"
-				disabled={pending}
-				className="w-full rounded-md bg-emerald-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
-			>
-				{pending ? "Signing in…" : "Sign in"}
-			</button>
+			<Button type="submit" size="lg" disabled={pending} className="h-11 w-full">
+				{pending ? "Đang đăng nhập…" : "Đăng nhập"}
+			</Button>
 		</form>
 	);
 }

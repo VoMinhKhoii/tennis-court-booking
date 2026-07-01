@@ -6,8 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { type ActionResult, fail, ok } from "./types";
 
 const loginSchema = z.object({
-	email: z.email("Enter a valid email"),
-	password: z.string().min(1, "Password is required"),
+	email: z.email("Nhập email hợp lệ"),
+	password: z.string().min(1, "Vui lòng nhập mật khẩu"),
 });
 
 /**
@@ -22,7 +22,7 @@ export async function login(input: {
 }): Promise<ActionResult<{ ok: true }>> {
 	const parsed = loginSchema.safeParse(input);
 	if (!parsed.success) {
-		return fail(parsed.error.issues[0]?.message ?? "Invalid input");
+		return fail(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
 	}
 
 	const supabase = await createClient();
@@ -31,13 +31,13 @@ export async function login(input: {
 		password: parsed.data.password,
 	});
 	if (error) {
-		return fail("Invalid email or password.");
+		return fail("Email hoặc mật khẩu không đúng.");
 	}
 
 	const { data: isOwner } = await supabase.rpc("is_owner");
 	if (isOwner !== true) {
 		await supabase.auth.signOut();
-		return fail("This account is not authorized.");
+		return fail("Tài khoản này không được phép truy cập.");
 	}
 
 	return ok({ ok: true });

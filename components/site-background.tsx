@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 
 /**
  * The app's atmosphere layer — one fixed, full-bleed surface behind all content.
- *  - Landing ("/"): the court illustration under a light paper scrim so the hero
+ *  - Landing ("/"): the court illustration under a warm cream scrim so the hero
  *    and cards stay legible.
- *  - In-app (everything else): a slow, lively ombre drifting through the light
- *    greens of the palette (frozen under prefers-reduced-motion via globals.css).
+ *  - In-app (everything else): a slow, lively ombre drifting through the warm
+ *    creams of the palette (frozen under prefers-reduced-motion via globals.css).
  */
 export function SiteBackground() {
 	const pathname = usePathname();

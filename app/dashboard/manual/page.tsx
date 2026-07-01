@@ -1,13 +1,14 @@
 import { ManualBookingForm } from "@/components/dashboard/manual-booking-form";
+import { PageHeader } from "@/components/dashboard/page-header";
 
 export default function ManualBookingPage() {
 	return (
-		<section>
-			<h2 className="mb-1 text-lg font-semibold">Manual booking</h2>
-			<p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-				Create a confirmed booking for a regular. Slots lock immediately.
-			</p>
+		<div>
+			<PageHeader
+				title="Đặt sân thủ công"
+				subtitle="Tạo lượt đặt đã xác nhận cho khách quen. Khung giờ bị khoá ngay lập tức."
+			/>
 			<ManualBookingForm />
-		</section>
+		</div>
 	);
 }

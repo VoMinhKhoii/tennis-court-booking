@@ -85,38 +85,45 @@
 }
 
 /*
- * Tennis Court Booking — "Scoreboard Modern" design system.
- * Light, refined, green-dominant. Built on shadcn/ui (Base UI) with the
- * locked court ramp (#276221 → #cce7c9) mapped onto shadcn's semantic tokens.
+ * Tennis Court Booking — court-green design system on a clean canvas. A green
+ * hierarchy carries the brand across customer + owner surfaces: deep forest
+ * #276221 for filled CTAs (white text on top), signature #5bb450 for small
+ * accents (selected cells, focus rings, the live dot), and pale court tints for
+ * soft surfaces and availability fills. Built on shadcn/ui (Base UI); the legacy
+ * token names (paper, ink, line, court ramp, chalk, signal, coral) are retained
+ * but repointed so the whole app shifts palette in one place. `court-*` is the
+ * green ramp; `coral`/`accent-teal`/`success` resolve into the green family.
  */
 
 :root {
 	color-scheme: light;
 
-	/* shadcn semantic tokens, recolored to the court green palette. */
-	--background: #f7faf4; /* paper */
-	--foreground: #12251a; /* ink */
+	/* shadcn semantic tokens, recolored to the Mintlify white/black/mint palette. */
+	--background: #ffffff; /* clean white canvas */
+	--foreground: #12251a; /* deep green-ink */
 	--card: #ffffff;
 	--card-foreground: #12251a;
 	--popover: #ffffff;
 	--popover-foreground: #12251a;
-	--primary: #276221; /* court-900 */
+	--primary: #276221; /* court-900 — deep forest green CTA surface (white text) */
 	--primary-foreground: #ffffff;
-	--secondary: #eaf4e6; /* court-50 */
+	--secondary: #eaf4e6; /* court-50 — light green surface */
 	--secondary-foreground: #276221;
-	--muted: #eef3ea;
-	--muted-foreground: #3f5a48; /* ink-soft */
-	--accent: #cce7c9; /* court-100 */
+	--muted: #f1f6ee; /* faint green surface */
+	--muted-foreground: #4a6553; /* green-steel */
+	--accent: #eaf4e6; /* court-50 — light green surface */
 	--accent-foreground: #276221;
-	--destructive: #b42318;
-	--border: #d8e6d2; /* line */
-	--input: #c8dcc0;
-	--ring: #5bb450; /* court-500 */
-	--radius: 0.625rem;
+	--destructive: #b42318; /* brand-error */
+	--border: #dde9d7; /* light green hairline */
+	--input: #dde9d7;
+	--ring: #5bb450; /* court-500 — signature green focus ring */
+	--radius: 0.5rem; /* 8px inputs/secondary cards */
 }
 
 @theme {
-	/* Court green ramp (the locked palette) + two derived ultra-light tints. */
+	/* Court green ramp — surfaces & availability fills. Low steps are pale green
+	   surfaces (greener cell = more courts free); high steps are deep forest
+	   green so any `text-court-900` stays a strong green-ink. */
 	--color-court-25: #f3f8f0;
 	--color-court-50: #eaf4e6;
 	--color-court-100: #cce7c9;
@@ -130,26 +137,45 @@
 	--color-court-900: #276221;
 	--color-court-950: #1a4517;
 
-	/* Surfaces + ink, kept in the green family (no pure black/white). */
-	--color-paper: #f7faf4;
+	/* Surfaces + ink (Mintlify white/gray/black). */
+	--color-paper: #f7faf4; /* faint green canvas */
 	--color-paper-raised: #ffffff;
 	--color-ink: #12251a;
-	--color-ink-soft: #3f5a48;
-	--color-ink-faint: #6b8472;
-	--color-line: #d8e6d2;
+	--color-ink-soft: #3f5a48; /* green-slate */
+	--color-ink-faint: #6b8472; /* green-stone */
+	--color-line: #d8e6d2; /* hairline */
 	--color-line-strong: #bcd3b3;
 
-	/* Neutral chalk for "occupied"/inactive (a desaturated court-grey). */
+	/* Desaturated green-grey for "occupied"/inactive. */
 	--color-chalk: #e7ece4;
 	--color-chalk-ink: #94a79a;
 
-	/* Functional signal colors — used sparingly, always with icon + label. */
-	--color-signal-amber: #c2810a;
-	--color-signal-amber-soft: #fbf3e0;
-	--color-signal-red: #b42318;
-	--color-signal-red-soft: #fdecea;
+	/* Green accent hierarchy (legacy coral/teal names map into the green family):
+	   deep forest #276221 = filled CTA surfaces (white text), signature #5bb450 =
+	   small accents/dots/rings, light court tints = soft fills. */
+	--color-coral: #276221; /* text-links / interactive accent (deep green on white) */
+	--color-coral-active: #1c4718; /* link hover */
+	--color-accent-teal: #5bb450; /* secondary bright accent */
+	--color-accent-amber: #c2810a; /* brand-warn */
+	--color-brand-green: #276221; /* primary filled green surface (white text) */
+	--color-brand-green-deep: #1c4718; /* darker green — strong icons / hover */
+	--color-brand-green-soft: #cce7c9; /* court-100 — soft green fill */
 
-	/* Elevation — soft, low "court" shadows. */
+	/* Deep-green dark surfaces (payment hero, code wrappers, dark bands). */
+	--color-surface-dark: #12251a;
+	--color-surface-dark-elevated: #1c3a2a;
+	--color-surface-dark-soft: #12251a;
+	--color-on-dark: #f3f8f0;
+	--color-on-dark-soft: #a8c2b0;
+
+	/* Functional signal colors — used sparingly, always with icon + label. */
+	--color-signal-amber: #c2810a; /* brand-warn */
+	--color-signal-amber-soft: #fbf3e0;
+	--color-signal-red: #b42318; /* brand-error */
+	--color-signal-red-soft: #fdecea;
+	--color-success: #46923c; /* court-700 — confirmations/checkmarks */
+
+	/* Elevation — soft, low green-tinted "court" shadows. */
 	--shadow-court: 0 1px 2px rgba(18, 37, 26, 0.04), 0 6px 20px -8px rgba(18, 37, 26, 0.12);
 	--shadow-court-lg: 0 2px 4px rgba(18, 37, 26, 0.05), 0 18px 44px -16px rgba(18, 37, 26, 0.22);
 	--shadow-pop: 0 -2px 4px rgba(18, 37, 26, 0.04), 0 -16px 40px -16px rgba(18, 37, 26, 0.18);
@@ -162,10 +188,10 @@
 
 @theme inline {
 	/* Fonts (next/font injects the underlying vars in layout.tsx). */
-	--font-sans: var(--font-be-vietnam);
-	--font-heading: var(--font-saira);
-	--font-display: var(--font-saira);
-	--font-mono: var(--font-geist-mono);
+	--font-sans: var(--font-inter);
+	--font-heading: var(--font-eb-garamond);
+	--font-display: var(--font-eb-garamond);
+	--font-mono: var(--font-jetbrains-mono);
 
 	/* shadcn semantic color utilities. */
 	--color-background: var(--background);
@@ -205,13 +231,18 @@
 	body {
 		color: var(--color-ink);
 		background-color: var(--color-paper);
-		/* Faint court-surface depth: a soft green wash, no clichés. */
+		/* Barely-there green wash on the canvas. */
 		background-image:
-			radial-gradient(70rem 40rem at 100% -10%, rgba(91, 180, 80, 0.08), transparent 60%),
-			radial-gradient(50rem 30rem at -10% 110%, rgba(39, 98, 33, 0.06), transparent 55%);
+			radial-gradient(70rem 40rem at 100% -10%, rgba(91, 180, 80, 0.06), transparent 60%),
+			radial-gradient(50rem 30rem at -10% 110%, rgba(18, 37, 26, 0.02), transparent 55%);
 		background-attachment: fixed;
 		-webkit-font-smoothing: antialiased;
 		text-rendering: optimizeLegibility;
+	}
+	/* Display headlines carry negative tracking. */
+	.font-display,
+	.font-heading {
+		letter-spacing: -0.02em;
 	}
 }
 
@@ -247,33 +278,33 @@
 	}
 }
 
-/* Landing background: court photo under a light paper scrim. Stronger at the
+/* Landing background: court photo under a white scrim. Stronger at the
    top-left (where the hero sits), clearing toward the lower-right so the court
    stays visible. Keeps text legible without hiding the image. */
 .home-scrim {
 	background-image:
 		linear-gradient(
 			115deg,
-			rgba(247, 250, 244, 0.95) 0%,
-			rgba(247, 250, 244, 0.82) 40%,
-			rgba(247, 250, 244, 0.42) 78%,
-			rgba(247, 250, 244, 0.2) 100%
+			rgba(255, 255, 255, 0.96) 0%,
+			rgba(255, 255, 255, 0.85) 40%,
+			rgba(255, 255, 255, 0.45) 78%,
+			rgba(255, 255, 255, 0.22) 100%
 		),
 		linear-gradient(
 			to bottom,
-			rgba(247, 250, 244, 0.8) 0%,
-			rgba(247, 250, 244, 0.2) 45%,
-			rgba(247, 250, 244, 0.55) 100%
+			rgba(255, 255, 255, 0.82) 0%,
+			rgba(255, 255, 255, 0.22) 45%,
+			rgba(255, 255, 255, 0.58) 100%
 		);
 }
 
-/* In-app background: a slow, lively ombre drifting through the light greens.
-   Two radial blooms + a diagonal wash, all panning via background-position. */
+/* In-app background: a slow ombre drifting through pale greens, with a faint
+   green bloom. Two radial blooms + a diagonal wash, panning via position. */
 .app-ombre {
 	background-color: var(--color-paper);
 	background-image:
-		radial-gradient(60rem 42rem at 12% 18%, rgba(140, 202, 132, 0.4), transparent 60%),
-		radial-gradient(52rem 40rem at 88% 82%, rgba(172, 216, 167, 0.45), transparent 62%),
+		radial-gradient(60rem 42rem at 12% 18%, rgba(91, 180, 80, 0.08), transparent 60%),
+		radial-gradient(52rem 40rem at 88% 82%, rgba(204, 231, 201, 0.6), transparent 62%),
 		linear-gradient(
 			120deg,
 			var(--color-court-25),

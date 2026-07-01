@@ -11,7 +11,7 @@ export function GridLegend() {
 				Đã đặt
 			</span>
 			<span className="inline-flex items-center gap-1.5">
-				<span className="h-3.5 w-3.5 rounded-sm bg-court-500" />
+				<span className="h-3.5 w-3.5 rounded-sm bg-brand-green" />
 				Bạn chọn
 			</span>
 		</div>

@@ -1,29 +1,29 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
-import { Be_Vietnam_Pro, Geist_Mono, Saira } from "next/font/google";
+import { EB_Garamond, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteBackground } from "@/components/site-background";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 import { Providers } from "./providers";
 
-// Display: athletic grotesque for headings + scoreboard numerals.
-const saira = Saira({
-	variable: "--font-saira",
+// Display: editorial serif for headlines (Anthropic "Copernicus" substitute).
+const ebGaramond = EB_Garamond({
+	variable: "--font-eb-garamond",
 	subsets: ["latin", "vietnamese"],
-	weight: ["500", "600", "700", "800"],
+	weight: ["400", "500"],
 });
 
-// Body: purpose-built for Vietnamese, refined and highly legible.
-const beVietnam = Be_Vietnam_Pro({
-	variable: "--font-be-vietnam",
+// Body: humanist sans for prose + UI; carries Vietnamese diacritics cleanly.
+const inter = Inter({
+	variable: "--font-inter",
 	subsets: ["latin", "vietnamese"],
-	weight: ["400", "500", "600", "700"],
+	weight: ["400", "500", "600"],
 });
 
 // Tabular numerals for the time axis, amounts and references.
-const geistMono = Geist_Mono({
-	variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+	variable: "--font-jetbrains-mono",
 	subsets: ["latin"],
 });
 
@@ -44,7 +44,12 @@ export default function RootLayout({
 	return (
 		<html
 			lang="vi"
-			className={cn("h-full antialiased", saira.variable, beVietnam.variable, geistMono.variable)}
+			className={cn(
+				"h-full antialiased",
+				ebGaramond.variable,
+				inter.variable,
+				jetbrainsMono.variable,
+			)}
 		>
 			<body className="flex min-h-full flex-col font-sans">
 				<SiteBackground />

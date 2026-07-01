@@ -139,21 +139,21 @@ export function AvailabilityView() {
 							}}
 							className={`flex-1 cursor-pointer rounded-md px-3 py-2 text-center transition-colors ${
 								mode === m.value
-									? "bg-court-900 text-white shadow-court"
+									? "bg-primary text-on-dark shadow-court"
 									: "text-ink-soft hover:bg-court-50"
 							}`}
 						>
 							<span className="block text-sm font-semibold">{m.label}</span>
 							<span
-								className={`block text-[11px] ${mode === m.value ? "text-court-100" : "text-ink-faint"}`}
+								className={`block text-[11px] ${mode === m.value ? "text-on-dark/80" : "text-ink-faint"}`}
 							>
 								{m.hint}
 							</span>
 						</button>
 					))}
 				</div>
-				<span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-court-700">
-					<span className="h-2 w-2 rounded-full bg-court-500 animate-[live-pulse_2s_ease-in-out_infinite]" />
+				<span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-ink-soft">
+					<span className="h-2 w-2 rounded-full bg-accent-teal animate-[live-pulse_2s_ease-in-out_infinite]" />
 					TRỰC TIẾP
 				</span>
 			</div>
@@ -183,7 +183,7 @@ export function AvailabilityView() {
 								setWeekStart(thisWeek);
 								resetPick();
 							}}
-							className="cursor-pointer text-xs text-court-700 hover:underline"
+							className="cursor-pointer text-xs text-ink hover:underline"
 						>
 							Về tuần này
 						</button>
@@ -297,7 +297,7 @@ function FilterChips({
 						onClick={() => onPick(on ? null : o.value)}
 						className={`cursor-pointer rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
 							on
-								? "bg-court-700 text-white"
+								? "bg-primary text-on-dark"
 								: "border border-line-strong bg-paper-raised text-ink-soft hover:border-court-400"
 						}`}
 					>
