@@ -100,17 +100,17 @@
 
 	/* shadcn semantic tokens, recolored to the Mintlify white/black/mint palette. */
 	--background: #ffffff; /* clean white canvas */
-	--foreground: #12251a; /* deep green-ink */
+	--foreground: #121212; /* near-black ink */
 	--card: #ffffff;
-	--card-foreground: #12251a;
+	--card-foreground: #121212;
 	--popover: #ffffff;
-	--popover-foreground: #12251a;
+	--popover-foreground: #121212;
 	--primary: #276221; /* court-900 — deep forest green CTA surface (white text) */
 	--primary-foreground: #ffffff;
 	--secondary: #eaf4e6; /* court-50 — light green surface */
 	--secondary-foreground: #276221;
 	--muted: #f1f6ee; /* faint green surface */
-	--muted-foreground: #4a6553; /* green-steel */
+	--muted-foreground: #525252; /* neutral grey */
 	--accent: #eaf4e6; /* court-50 — light green surface */
 	--accent-foreground: #276221;
 	--destructive: #b42318; /* brand-error */
@@ -140,9 +140,9 @@
 	/* Surfaces + ink (Mintlify white/gray/black). */
 	--color-paper: #f7faf4; /* faint green canvas */
 	--color-paper-raised: #ffffff;
-	--color-ink: #12251a;
-	--color-ink-soft: #3f5a48; /* green-slate */
-	--color-ink-faint: #6b8472; /* green-stone */
+	--color-ink: #121212; /* near-black — text stays legible over the green canvas */
+	--color-ink-soft: #404040; /* neutral dark grey (secondary text) */
+	--color-ink-faint: #6b6b6b; /* neutral grey (tertiary text) */
 	--color-line: #d8e6d2; /* hairline */
 	--color-line-strong: #bcd3b3;
 
@@ -183,11 +183,12 @@
 	--color-accent-focus-soft: #fef3e2;
 	--color-on-accent-focus: #ffffff;
 
-	/* Neutral "booked/taken" surface — true grey (not green) so unavailable is
-	   unmistakably different from the green "available" state. */
-	--color-booked: #eef1f4;
-	--color-booked-ink: #64748b; /* slate-500 */
-	--color-booked-line: #cbd5e1; /* slate-300 */
+	/* Neutral "booked/taken" surface — a solid, saturated-enough slate grey (no
+	   texture) so unavailable reads instantly as a different HUE from the green
+	   "available" state, not just a paler shade. */
+	--color-booked: #cbd5e1; /* slate-300 — solid grey fill */
+	--color-booked-ink: #475569; /* slate-600 — text on grey */
+	--color-booked-line: #94a3b8; /* slate-400 — grey hairline */
 
 	/* Elevation — soft, low green-tinted "court" shadows. */
 	--shadow-court: 0 1px 2px rgba(18, 37, 26, 0.04), 0 6px 20px -8px rgba(18, 37, 26, 0.12);
@@ -201,11 +202,13 @@
 }
 
 @theme inline {
-	/* Fonts (next/font injects the underlying vars in layout.tsx). */
+	/* Two families only: EB Garamond (display/heading) + Inter (everything else).
+	   `font-mono` resolves to Inter too — numerals stay aligned via tabular figures
+	   (see the `.font-mono` rule) rather than a separate monospace face. */
 	--font-sans: var(--font-inter);
 	--font-heading: var(--font-eb-garamond);
 	--font-display: var(--font-eb-garamond);
-	--font-mono: var(--font-jetbrains-mono);
+	--font-mono: var(--font-inter);
 
 	/* shadcn semantic color utilities. */
 	--color-background: var(--background);
@@ -257,6 +260,11 @@
 	.font-display,
 	.font-heading {
 		letter-spacing: -0.02em;
+	}
+	/* Inter carries the numerals; force tabular figures so the time axis, prices
+	   and references stay column-aligned without a monospace face. */
+	.font-mono {
+		font-feature-settings: "tnum" 1;
 	}
 }
 
@@ -384,6 +392,19 @@
 .scrollbar-thin::-webkit-scrollbar-thumb {
 	background-color: var(--color-line-strong);
 	border-radius: 9999px;
+}
+
+/* Court schedule grid: every 30-min block is a fixed width (--cell-w) on all
+   viewports, so the row scrolls horizontally to browse times. Only the pinned
+   court-name column narrows on mobile to give the schedule more room. */
+.court-grid {
+	--namecol: 96px;
+	--cell-w: 48px;
+}
+@media (max-width: 640px) {
+	.court-grid {
+		--namecol: 56px;
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -24,12 +24,14 @@ function mondayOffset(date: string): number {
  */
 export function MiniCalendar({
 	value,
+	today,
 	min,
 	max,
 	onChange,
 	onClose,
 }: {
 	value: string;
+	today: string;
 	min: string;
 	max: string;
 	onChange: (date: string) => void;
@@ -76,7 +78,7 @@ export function MiniCalendar({
 				>
 					<ChevronLeft className="h-4 w-4" />
 				</button>
-				<span className="font-display text-sm font-semibold text-ink">{monthTitle(view)}</span>
+				<span className="font-display text-sm font-medium text-ink">{monthTitle(view)}</span>
 				<button
 					type="button"
 					disabled={view >= maxMonth}
@@ -101,6 +103,7 @@ export function MiniCalendar({
 				{days.map((d) => {
 					const disabled = d < min || d > max;
 					const selected = d === value;
+					const isToday = d === today;
 					const dayNum = Number(d.slice(-2));
 					return (
 						<button
@@ -108,6 +111,7 @@ export function MiniCalendar({
 							type="button"
 							disabled={disabled}
 							aria-pressed={selected}
+							aria-current={isToday ? "date" : undefined}
 							onClick={() => {
 								onChange(d);
 								onClose();
@@ -117,13 +121,33 @@ export function MiniCalendar({
 									? "bg-accent-focus font-semibold text-on-accent-focus"
 									: disabled
 										? "cursor-not-allowed text-ink-faint/40"
-										: "text-ink hover:bg-court-50"
+										: isToday
+											? "font-semibold text-court-800 ring-1 ring-court-500 ring-inset hover:bg-court-50"
+											: "text-ink hover:bg-court-50"
 							}`}
 						>
 							{dayNum}
 						</button>
 					);
 				})}
+			</div>
+
+			{/* Quick jump back to today. */}
+			<div className="mt-2 flex items-center justify-between border-line border-t pt-2">
+				<span className="inline-flex items-center gap-1.5 text-ink-faint text-xs">
+					<span className="h-2.5 w-2.5 rounded-[3px] ring-1 ring-court-500 ring-inset" />
+					Hôm nay
+				</span>
+				<button
+					type="button"
+					onClick={() => {
+						onChange(today);
+						onClose();
+					}}
+					className="cursor-pointer font-semibold text-court-700 text-xs transition-colors hover:text-court-900"
+				>
+					Về hôm nay
+				</button>
 			</div>
 		</div>
 	);

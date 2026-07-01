@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AvailabilityView } from "@/components/availability/availability-view";
+import { PricingSection } from "@/components/availability/pricing-section";
 
 export const metadata: Metadata = {
 	title: "Lịch trống",
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function AvailabilityPage() {
 	return (
-		<main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6">
+		<main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
 			<header className="mb-5">
 				<Link
 					href="/"
@@ -25,6 +26,7 @@ export default function AvailabilityPage() {
 				</p>
 			</header>
 			<AvailabilityView />
+			<PricingSection />
 		</main>
 	);
 }
