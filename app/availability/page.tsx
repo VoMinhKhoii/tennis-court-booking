@@ -4,7 +4,7 @@ import { AvailabilityView } from "@/components/availability/availability-view";
 
 export const metadata: Metadata = {
 	title: "Lịch trống",
-	description: "Lịch sân tennis trống theo thời gian thực — tuần này và các tuần tới.",
+	description: "Lịch sân tennis trống theo thời gian thực — chọn sân và khung giờ trong ngày.",
 };
 
 export default function AvailabilityPage() {
@@ -21,7 +21,7 @@ export default function AvailabilityPage() {
 					Lịch trống
 				</h1>
 				<p className="mt-1 text-sm text-ink-soft">
-					Chạm khung giờ bắt đầu rồi khung kết thúc để chọn, sau đó đặt sân.
+					Chọn ngày, xem lịch từng sân, rồi chạm khung giờ trống để đặt.
 				</p>
 			</header>
 			<AvailabilityView />

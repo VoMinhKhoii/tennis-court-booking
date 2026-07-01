@@ -4,7 +4,7 @@ export type Tone = "free" | "taken" | "pending" | "confirmed" | "rejected";
 
 const tones: Record<Tone, { wrap: string; dot: string }> = {
 	free: { wrap: "bg-court-50 text-ink-soft", dot: "bg-success" },
-	taken: { wrap: "bg-chalk text-chalk-ink", dot: "bg-chalk-ink" },
+	taken: { wrap: "bg-booked text-booked-ink", dot: "bg-booked-ink" },
 	pending: { wrap: "bg-signal-amber-soft text-signal-amber", dot: "bg-signal-amber" },
 	confirmed: { wrap: "bg-court-100 text-ink", dot: "bg-success" },
 	rejected: { wrap: "bg-signal-red-soft text-signal-red", dot: "bg-signal-red" },
