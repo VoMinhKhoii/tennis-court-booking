@@ -16,9 +16,32 @@ alter table public.settings
 	add column if not exists price_bands jsonb not null
 	default '[{"start":"06:00","rate":350000},{"start":"11:00","rate":300000},{"start":"15:00","rate":350000},{"start":"17:00","rate":450000}]'::jsonb;
 
+-- Authoritative shape backstop for price_bands, matching what price_span() and the
+-- TS mirror assume: a non-empty array of {start, rate} where start is HH:MM 30-min
+-- aligned, rate is a positive integer, and starts are unique. This guards against a
+-- malformed row entering by any path (not just the validated server action), which
+-- would otherwise cause preview-vs-charge drift.
+create or replace function public.price_bands_valid(p jsonb)
+returns boolean
+language sql
+immutable
+as $$
+	select
+		jsonb_typeof(p) = 'array'
+		and jsonb_array_length(p) >= 1
+		and not exists (
+			select 1 from jsonb_array_elements(p) as e
+			where jsonb_typeof(e) <> 'object'
+				or (e->>'start') !~ '^([01][0-9]|2[0-3]):(00|30)$'
+				or (e->>'rate') !~ '^[1-9][0-9]*$'
+		)
+		and (select count(distinct e->>'start') from jsonb_array_elements(p) as e)
+			= jsonb_array_length(p);
+$$;
+
 alter table public.settings
-	add constraint settings_price_bands_nonempty
-	check (jsonb_typeof(price_bands) = 'array' and jsonb_array_length(price_bands) >= 1);
+	add constraint settings_price_bands_valid
+	check (public.price_bands_valid(price_bands));
 
 -- Per-occurrence amount (VND) for a span: for each 30-min block, the rate is the
 -- band with the greatest start <= the block's minute (else the flat fallback);

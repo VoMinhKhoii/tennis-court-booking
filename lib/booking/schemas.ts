@@ -114,7 +114,9 @@ const priceBand = z.object({
  * back to the static uploaded QR.
  *
  * priceBands replaces the old flat rate: an ordered set of bands, each applying
- * from its start until the next. Starts must be unique (validated order-agnostic).
+ * from its start until the next. Starts must be unique; the output is sorted
+ * ascending so persisted price_bands is always canonical, regardless of caller
+ * order (the SQL/TS pricing paths both rely on that ordering being consistent).
  */
 export const settingsInputSchema = z.object({
 	priceBands: z
@@ -123,7 +125,10 @@ export const settingsInputSchema = z.object({
 		.refine((bands) => {
 			const mins = bands.map((b) => timeToMinutes(b.start)).sort((a, b) => a - b);
 			return mins.every((m, i) => i === 0 || m > mins[i - 1]);
-		}, "các khung giờ không được trùng thời điểm bắt đầu"),
+		}, "các khung giờ không được trùng thời điểm bắt đầu")
+		.transform((bands) =>
+			[...bands].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start)),
+		),
 	bankBin: z.string().trim().max(20).optional(),
 	bankAccountNumber: z.string().trim().max(40).optional(),
 	bankAccountName: z.string().trim().max(120).optional(),

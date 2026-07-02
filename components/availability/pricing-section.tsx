@@ -26,22 +26,38 @@ export function PricingSection() {
 			(a, b) => timeToMinutes(a.start) - timeToMinutes(b.start),
 		);
 		if (bands.length === 0) return null;
-		// Latest court close bounds the final band; fall back to 22:00 if unknown.
-		const closeMin = Math.max(
-			...(courts ?? []).map((c) => timeToMinutes(c.close_time)),
-			timeToMinutes(bands[bands.length - 1].start) + 60,
-		);
-		const dayEnd = Number.isFinite(closeMin) ? closeMin : 22 * 60;
-		const bandRows = bands.map((b, i) => {
-			const startMin = timeToMinutes(b.start);
-			const endMin = i + 1 < bands.length ? timeToMinutes(bands[i + 1].start) : dayEnd;
-			return {
-				time: `${minutesToTime(startMin)} – ${minutesToTime(endMin)}`,
-				hours: Math.max(0, endMin - startMin) / 60,
-				rate: b.rate,
-			};
-		});
-		const totalHours = Math.max(0, dayEnd - timeToMinutes(bands[0].start)) / 60;
+		// The chargeable day spans the earliest court open → latest court close
+		// (public_courts is already active-only). Any time before the first band is
+		// charged at the flat fallback, so surface it as its own row rather than
+		// hiding it — otherwise the card and daily total understate billable time.
+		const openTimes = (courts ?? []).map((c) => timeToMinutes(c.open_time));
+		const closeTimes = (courts ?? []).map((c) => timeToMinutes(c.close_time));
+		const firstBandStart = timeToMinutes(bands[0].start);
+		const dayStart = openTimes.length ? Math.min(...openTimes) : firstBandStart;
+		const dayEnd = closeTimes.length
+			? Math.max(...closeTimes)
+			: Math.max(timeToMinutes(bands[bands.length - 1].start) + 60, 22 * 60);
+		const bandRows = [
+			...(dayStart < firstBandStart
+				? [
+						{
+							time: `${minutesToTime(dayStart)} – ${minutesToTime(firstBandStart)}`,
+							hours: (firstBandStart - dayStart) / 60,
+							rate: settings?.flat_hourly_rate_vnd ?? 0,
+						},
+					]
+				: []),
+			...bands.map((b, i) => {
+				const startMin = timeToMinutes(b.start);
+				const endMin = i + 1 < bands.length ? timeToMinutes(bands[i + 1].start) : dayEnd;
+				return {
+					time: `${minutesToTime(startMin)} – ${minutesToTime(endMin)}`,
+					hours: Math.max(0, endMin - startMin) / 60,
+					rate: b.rate,
+				};
+			}),
+		];
+		const totalHours = Math.max(0, dayEnd - dayStart) / 60;
 		return { bandRows, totalHours };
 	}, [settings, courts]);
 

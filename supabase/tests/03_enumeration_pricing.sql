@@ -94,3 +94,16 @@ begin
 end;
 $$;
 rollback;
+
+-- price_bands_valid backstop: accepts canonical bands, rejects malformed ones.
+do $$
+begin
+	assert public.price_bands_valid('[{"start":"06:00","rate":350000},{"start":"11:00","rate":300000}]'::jsonb), 'valid bands rejected';
+	assert not public.price_bands_valid('[]'::jsonb), 'empty array accepted';
+	assert not public.price_bands_valid('[{"start":"06:15","rate":350000}]'::jsonb), 'non-30-min-aligned start accepted';
+	assert not public.price_bands_valid('[{"start":"06:00","rate":0}]'::jsonb), 'non-positive rate accepted';
+	assert not public.price_bands_valid('[{"start":"06:00","rate":350000},{"start":"06:00","rate":300000}]'::jsonb), 'duplicate starts accepted';
+	assert not public.price_bands_valid('[{"rate":350000}]'::jsonb), 'missing start accepted';
+	raise notice 'OK 03 price_bands_valid';
+end;
+$$;
