@@ -165,8 +165,15 @@ export function AvailabilityView() {
 		}
 	}
 
-	const rate = settings?.flat_hourly_rate_vnd ?? 0;
-	const amount = selection && rate > 0 ? computeAmountVnd(rate, selection.blockCount, 1) : null;
+	const amount = selection
+		? computeAmountVnd(
+				settings?.price_bands ?? [],
+				settings?.flat_hourly_rate_vnd ?? 0,
+				selection.startTime,
+				selection.blockCount,
+				1,
+			)
+		: null;
 	const endTime = selection
 		? minutesToTime(timeToMinutes(selection.startTime) + selection.blockCount * 30)
 		: null;

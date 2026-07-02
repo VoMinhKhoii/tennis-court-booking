@@ -1,5 +1,7 @@
 /** Row shapes returned by the data-access hooks. */
 
+import type { PriceBand } from "@/lib/booking/pricing";
+
 /** public_availability view row (anon-readable, PII-free). Spec §6.1. */
 export type AvailabilityRow = {
 	court_id: string;
@@ -22,6 +24,7 @@ export type CourtRow = {
 export type SettingsRow = {
 	id: number;
 	flat_hourly_rate_vnd: number;
+	price_bands: PriceBand[];
 	qr_image_path: string | null;
 	bank_bin: string | null;
 	bank_account_number: string | null;

@@ -93,10 +93,15 @@ export function ManualBookingForm() {
 		}
 	}, [form.type, form.date, form.month, form.weekday, today]);
 
-	const rate = settings?.flat_hourly_rate_vnd ?? 0;
 	const amountPreview =
-		rate > 0 && enumeratedDates.length > 0
-			? computeAmountVnd(rate, form.blockCount, enumeratedDates.length)
+		enumeratedDates.length > 0 && form.startTime
+			? computeAmountVnd(
+					settings?.price_bands ?? [],
+					settings?.flat_hourly_rate_vnd ?? 0,
+					form.startTime,
+					form.blockCount,
+					enumeratedDates.length,
+				)
 			: null;
 
 	function update<K extends keyof FormState>(key: K, value: FormState[K]) {

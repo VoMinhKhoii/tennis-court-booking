@@ -10,6 +10,7 @@
 
 import { z } from "zod";
 import { MAX_BLOCK_COUNT } from "./constants";
+import { timeToMinutes } from "./grid";
 import { normalizeOwnerZalo } from "./zalo";
 
 /** YYYY-MM-DD ICT calendar date. */
@@ -100,14 +101,34 @@ export const courtInputSchema = z
 
 export type CourtInput = z.infer<typeof courtInputSchema>;
 
+/** One time-of-day price band: a 30-min-aligned start + a VND/hour rate. */
+const priceBand = z.object({
+	start: alignedTime,
+	rate: z.number().int("giá phải là số nguyên").positive("giá phải > 0"),
+});
+
 /**
- * Owner settings update (flat rate + bank details for dynamic VietQR). QR image
+ * Owner settings update (price bands + bank details for dynamic VietQR). QR image
  * path is set via the separate upload flow. Bank fields are optional — when set
  * they drive the VietQR (amount + reference embedded); when blank the flow falls
  * back to the static uploaded QR.
+ *
+ * priceBands replaces the old flat rate: an ordered set of bands, each applying
+ * from its start until the next. Starts must be unique; the output is sorted
+ * ascending so persisted price_bands is always canonical, regardless of caller
+ * order (the SQL/TS pricing paths both rely on that ordering being consistent).
  */
 export const settingsInputSchema = z.object({
-	flatHourlyRateVnd: z.number().int("rate must be an integer").positive("rate must be > 0"),
+	priceBands: z
+		.array(priceBand)
+		.min(1, "cần ít nhất một khung giờ")
+		.refine((bands) => {
+			const mins = bands.map((b) => timeToMinutes(b.start)).sort((a, b) => a - b);
+			return mins.every((m, i) => i === 0 || m > mins[i - 1]);
+		}, "các khung giờ không được trùng thời điểm bắt đầu")
+		.transform((bands) =>
+			[...bands].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start)),
+		),
 	bankBin: z.string().trim().max(20).optional(),
 	bankAccountNumber: z.string().trim().max(40).optional(),
 	bankAccountName: z.string().trim().max(120).optional(),

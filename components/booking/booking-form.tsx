@@ -110,10 +110,15 @@ export function BookingForm({
 
 	const enumeratedDates = useMemo<string[]>(() => (form.date ? [form.date] : []), [form.date]);
 
-	const rate = settings?.flat_hourly_rate_vnd ?? 0;
 	const amountPreview =
-		rate > 0 && enumeratedDates.length > 0
-			? computeAmountVnd(rate, form.blockCount, enumeratedDates.length)
+		enumeratedDates.length > 0 && form.startTime
+			? computeAmountVnd(
+					settings?.price_bands ?? [],
+					settings?.flat_hourly_rate_vnd ?? 0,
+					form.startTime,
+					form.blockCount,
+					enumeratedDates.length,
+				)
 			: null;
 
 	const { data: availability } = useAvailabilityAllCourts(monthStartOf(form.date));
